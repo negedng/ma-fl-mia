@@ -129,7 +129,7 @@ def train(conf, train_ds=None, test_ds=None):
 
 
 def evaluate(conf, model, train_ds=None, test_ds=None):
-    if train_tfds is None:
+    if train_ds is None:
         train_ds, test_ds = tfds.load('cifar10', split=['train','test'], as_supervised=True)
         
     r = data_preparation.get_mia_datasets(train_ds, test_ds,
