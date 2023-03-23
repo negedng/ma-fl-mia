@@ -60,8 +60,8 @@ class FlowerClient(fl.client.NumPyClient):
     def evaluate(self, weights, config):
         try:
             self.model.set_weights(weights)
-            loss, _ = self.model.evaluate(self.X_test, self.Y_test, verbose=0)
-            return loss, len(self.X_test), {}
+            loss, accuracy = self.model.evaluate(self.X_test, self.Y_test, verbose=0)
+            return loss, len(self.X_test), {"accuracy": accuracy}
         except Exception as e:
             log(
                 ERROR,
