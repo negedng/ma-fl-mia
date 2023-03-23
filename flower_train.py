@@ -14,6 +14,8 @@ ROOT_PATH = utils.lookup_envroot()
 global conf 
 global X_split
 global Y_split 
+global X_test
+global Y_test
 
 conf = utils.Config({
     'unit_size':64,
@@ -21,19 +23,20 @@ conf = utils.Config({
     'models_path': ROOT_PATH+"/data/models/ma-fl-mia/federated/",
     'codes_path': ROOT_PATH+"/data/codes/ma-fl-mia/flower_train.py",
     'seed': 20,
-    'rounds': 20,
+    'rounds': 1,
     'epochs': 1,
     'n_attacker_knowledge': 100,
     'n_attack_sample': 5000,
     'batch_size' : 32,
     'learning_rate' : 0.001,
+    'alpha': 1.0
 })
 
 
 def client_fn(cid: str) -> fl.client.Client:
     """Prepare flower client from ID (following flower documentation)"""
     client = FlowerClient(int(cid), conf)
-    client.load_data(X_split[int(cid)], Y_split[int(cid)])
+    client.load_data(X_split[int(cid)], Y_split[int(cid)], X_test, Y_test)
     client.init_model()
     return client
 
@@ -101,13 +104,14 @@ def train(conf, train_ds=None, test_ds=None):
         train_ds, test_ds = tfds.load('cifar10', split=['train','test'], as_supervised=True)
         
     X_train, Y_train = utils.get_np_from_tfds(train_ds)
-    X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf.num_clients, mode="clients", seed=conf.seed)
+    X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf.num_clients,
+                                                   mode="clients", seed=conf.seed, alpha=conf.alpha)
 
     # Create FedAvg strategy
     strategy = SaveAndLogStrategy(
         conf=conf,
         fraction_fit=1.0,  # Sample 10% of available clients for training
-        fraction_evaluate=0.1,  # Sample 5% of available clients for evaluation
+        fraction_evaluate=0.05,  # Sample 5% of available clients for evaluation
         min_fit_clients=1,  # Never sample less than 10 clients for training
         min_evaluate_clients=1,  # Never sample less than 5 clients for evaluation
         # Wait until at least 75 clients are available
@@ -147,7 +151,11 @@ def evaluate(conf, model, train_ds=None, test_ds=None):
     results = {
         'adv_std':advantage,
         'test_acc': test_performance[1],
-        'train_acc': train_performance[1]
+        'train_acc': train_performance[1],
+        'unit_size': conf.unit_size,
+        'alpha' : conf.alpha,
+        'model_id' : conf.model_id,
+        'params' : model.count_params(),
     }
     return results
 
@@ -156,11 +164,27 @@ if __name__ == "__main__":
     import tensorflow_datasets as tfds
     
     train_ds, test_ds = tfds.load('cifar10', split=['train','test'], as_supervised=True)
-    model = train(conf, train_ds, test_ds)
+    X_test, Y_test = utils.get_np_from_tfds(test_ds)
     
-    print("Training completed, model evaluation")
-    # Evaluate
-    results = evaluate(conf, model, train_ds, test_ds)
-    print(results)
-
+    f_name = datetime.now().strftime("%Y%m%d-%H%M%S")
+    with open(os.path.join(os.path.dirname(conf.codes_path),f'dump/{f_name}.json'), 'w') as f:
+        f.write("[\n")
+    
+    
+    for i, us in enumerate([5,10,15,20,30,40,50,60]):
+        conf.unit_size = us
+        model = train(conf, train_ds, test_ds)
+        
+        print("Training completed, model evaluation")
+        # Evaluate
+        results = evaluate(conf, model, train_ds, test_ds)
+        print(results)
+        if i==0:
+            with open(os.path.join(os.path.dirname(conf.codes_path),f'dump/{f_name}.json'), 'w') as f:
+                f.write("[\n")        
+        with open(os.path.join(os.path.dirname(conf.codes_path),f'dump/{f_name}.json'), 'a') as f:
+            f.write("  "+str(results)+",\n")
+    
+    with open(os.path.join(os.path.dirname(conf.codes_path),f'dump/{f_name}.json'), 'a') as f:
+        f.write("\n]")    
     

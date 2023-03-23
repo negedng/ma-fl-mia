@@ -17,12 +17,15 @@ class FlowerClient(fl.client.NumPyClient):
     def init_model(self):
         model = models.get_model(self.conf.unit_size)
         model.compile(optimizer=models.get_optimizer(learning_rate=self.conf.learning_rate),
-                      loss=models.get_loss())
+                      loss=models.get_loss(),
+                      metrics=['accuracy'])
         self.model = model
     
-    def load_data(self, X, Y):
+    def load_data(self, X, Y, X_test, Y_test):
         self.X = X
         self.Y = Y
+        self.X_test = X_test
+        self.Y_test = Y_test
   
     def get_parameters(self, config):
         return self.model.get_weights()
@@ -55,6 +58,15 @@ class FlowerClient(fl.client.NumPyClient):
         return self.model.get_weights(), len(self.X), shared_metrics
 
     def evaluate(self, weights, config):
-        self.model.set_weights(weights)
-        loss = self.model.evaluate(self.X, self.Y, verbose=0)
-        return loss, len(self.X), {}
+        try:
+            self.model.set_weights(weights)
+            loss, _ = self.model.evaluate(self.X_test, self.Y_test, verbose=0)
+            return loss, len(self.X_test), {}
+        except Exception as e:
+            log(
+                ERROR,
+                "Client error: %s",
+                str(e),
+            )
+            raise Error("Client evaluate terminated unexpectedly")
+
