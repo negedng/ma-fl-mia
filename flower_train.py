@@ -23,11 +23,11 @@ conf = utils.Config({
     'models_path': ROOT_PATH+"/data/models/ma-fl-mia/federated/",
     'codes_path': ROOT_PATH+"/data/codes/ma-fl-mia/flower_train.py",
     'seed': 20,
-    'rounds': 1,
+    'rounds': 30,
     'epochs': 1,
     'n_attacker_knowledge': 100,
     'n_attack_sample': 5000,
-    'batch_size' : 32,
+    'batch_size' : 128,
     'learning_rate' : 0.001,
     'alpha': 1.0
 })
