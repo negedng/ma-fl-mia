@@ -167,9 +167,6 @@ if __name__ == "__main__":
     X_test, Y_test = utils.get_np_from_tfds(test_ds)
     
     f_name = datetime.now().strftime("%Y%m%d-%H%M%S")
-    with open(os.path.join(os.path.dirname(conf.codes_path),f'dump/{f_name}.json'), 'w') as f:
-        f.write("[\n")
-    
     
     for i, us in enumerate([5,10,15,20,30,40,50,60]):
         conf.unit_size = us
