@@ -28,16 +28,16 @@ def simple_CNN(unit_size, num_classes=10, input_shape=(32,32,3)):
     ])
     return model
 
-def get_model(unit_size, mode="simple_CNN"):
+def get_model(unit_size, mode="simple_CNN", *args, **kwargs):
     if mode=="simple_CNN":
-         return simple_CNN(unit_size)
+         return simple_CNN(unit_size, *args, **kwargs)
     raise ValueError(f'Unknown model type{mode}')
     
 
-def get_optimizer():
-    return tf.keras.optimizers.Adam()
+def get_optimizer(*args, **kwargs):
+    return tf.keras.optimizers.Adam(*args, **kwargs)
 
 
-def get_loss():
-    return tf.keras.losses.SparseCategoricalCrossentropy()
+def get_loss(*args, **kwargs):
+    return tf.keras.losses.SparseCategoricalCrossentropy(*args, **kwargs)
 

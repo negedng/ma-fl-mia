@@ -16,7 +16,7 @@ class FlowerClient(fl.client.NumPyClient):
     
     def init_model(self):
         model = models.get_model(self.conf.unit_size)
-        model.compile(optimizer=models.get_optimizer(),
+        model.compile(optimizer=models.get_optimizer(learning_rate=self.conf.learning_rate),
                       loss=models.get_loss())
         self.model = model
     
