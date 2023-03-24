@@ -2,8 +2,8 @@
     "unit_size" : 64,
     "num_clients" : 20,
     "paths" : {
-        "models" : "/data/models/ma-fl-mia/federated/",
-        "code" : "/data/codes/ma-fl-mia/flower_train.py"
+        "models" : "data/models/ma-fl-mia/federated/",
+        "code" : "data/codes/ma-fl-mia/flower_train.py"
         },
     "seed" : 20,
     "rounds" : 30,
