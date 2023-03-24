@@ -1,6 +1,7 @@
 import numpy as np
 import os
 from tqdm import tqdm
+import json
 
 
 def get_np_from_tfds(ds):
@@ -12,18 +13,16 @@ def get_np_from_tfds(ds):
     return np.array(X), np.array(Y)
 
 
-def lookup_envroot(env_path='env', default_path=''):
+def load_config(env_path='env.json', config_path='config.json'):
     """Check for an env root file"""
-    if os.path.exists(env_path):
-        with open(env_path, encoding="utf-8") as file:
-            return file.read().strip()
-    return default_path
-
-
-class Config:
-    def __init__(self, my_dict):
-        for key in my_dict:
-            setattr(self, key, my_dict[key])
+    with open("env.json", "r") as f:
+        env = json.load(f)
+    with open("config.json", "r") as f:
+        config = json.load(f)
+    for k,v in config['paths'].items():
+        config['paths'][k] = str(os.path.join(env['root_path'], v))
+    config.update(env)
+    return config
 
 
 def predict_losses(model, X, Y, loss_function, verbose=0.5):

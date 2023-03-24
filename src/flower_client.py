@@ -15,8 +15,8 @@ class FlowerClient(fl.client.NumPyClient):
         self.conf = conf
     
     def init_model(self):
-        model = models.get_model(self.conf.unit_size)
-        model.compile(optimizer=models.get_optimizer(learning_rate=self.conf.learning_rate),
+        model = models.get_model(self.conf['unit_size'])
+        model.compile(optimizer=models.get_optimizer(learning_rate=self.conf['learning_rate']),
                       loss=models.get_loss(),
                       metrics=['accuracy'])
         self.model = model
@@ -37,8 +37,8 @@ class FlowerClient(fl.client.NumPyClient):
             history = self.model.fit(
                 self.X,
                 self.Y,
-                epochs=self.conf.epochs,
-                batch_size=self.conf.batch_size,
+                epochs=self.conf['epochs'],
+                batch_size=self.conf['batch_size'],
                 verbose=0
             )
             if np.isnan(history.history['loss'][-1]): # or np.isnan(history.history['val_loss'][-1]):

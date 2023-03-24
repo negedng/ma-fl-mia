@@ -5,11 +5,11 @@ import shutil
 from datetime import datetime
 import os
 import numpy as np
+import json
 
 from src.flower_client import FlowerClient
 from src import utils, models, data_preparation, attacks
 
-ROOT_PATH = utils.lookup_envroot()
 
 global conf 
 global X_split
@@ -17,20 +17,7 @@ global Y_split
 global X_test
 global Y_test
 
-conf = utils.Config({
-    'unit_size':64,
-    'num_clients':20,
-    'models_path': ROOT_PATH+"/data/models/ma-fl-mia/federated/",
-    'codes_path': ROOT_PATH+"/data/codes/ma-fl-mia/flower_train.py",
-    'seed': 20,
-    'rounds': 30,
-    'epochs': 1,
-    'n_attacker_knowledge': 100,
-    'n_attack_sample': 5000,
-    'batch_size' : 128,
-    'learning_rate' : 0.001,
-    'alpha': 1.0
-})
+conf = utils.load_config()
 
 
 def client_fn(cid: str) -> fl.client.Client:
@@ -80,13 +67,13 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             log(INFO, "Saving model")
             aggregated_weights = fl.common.parameters_to_ndarrays(
                 self.aggregated_parameters)
-            model = models.get_model(self.conf.unit_size)
+            model = models.get_model(self.conf['unit_size'])
             model.compile(optimizer=models.get_optimizer(),
                           loss=models.get_loss())
             model.set_weights(aggregated_weights)
-            model.save(os.path.join(conf.models_path,
-                       conf.model_id, 'saved_model'))
-        if rnd == self.conf.rounds:
+            model.save(os.path.join(conf['paths']['models'],
+                       conf['model_id'], 'saved_model'))
+        if rnd == self.conf['rounds']:
             # end of training calls
             pass
         return aggregated_result
@@ -95,17 +82,19 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
 def train(conf, train_ds=None, test_ds=None):
     global X_split
     global Y_split
-    conf.model_id = datetime.now().strftime("%Y%m%d-%H%M%S")
-    os.makedirs(os.path.join(conf.models_path, conf.model_id), mode=0o777)
-    shutil.copy(conf.codes_path,
-                os.path.join(conf.models_path, conf.model_id, "train.py"))
+    conf['model_id'] = datetime.now().strftime("%Y%m%d-%H%M%S")
+    os.makedirs(os.path.join(conf['paths']['models'], conf['model_id']), mode=0o777)
+    shutil.copy(conf['paths']['code'],
+                os.path.join(conf['paths']['models'], conf['model_id'], "train.py"))
+    with open(os.path.join(conf['paths']['models'], conf['model_id'], "config.json"), "w") as f:
+        json.dump(conf, f, indent=4)
     
     if train_ds is None:
         train_ds, test_ds = tfds.load('cifar10', split=['train','test'], as_supervised=True)
         
     X_train, Y_train = utils.get_np_from_tfds(train_ds)
-    X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf.num_clients,
-                                                   mode="clients", seed=conf.seed, alpha=conf.alpha)
+    X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf['num_clients'],
+                                                   mode="clients", seed=conf['seed'], alpha=conf['alpha'])
 
     # Create FedAvg strategy
     strategy = SaveAndLogStrategy(
@@ -121,11 +110,11 @@ def train(conf, train_ds=None, test_ds=None):
     # Start simulation
     fl.simulation.start_simulation(
         client_fn=client_fn,
-        num_clients=conf.num_clients,
-        config=fl.server.ServerConfig(num_rounds=conf.rounds),
+        num_clients=conf['num_clients'],
+        config=fl.server.ServerConfig(num_rounds=conf['rounds']),
         strategy=strategy,
     )
-    model = tf.keras.models.load_model(os.path.join(conf.models_path, conf.model_id, "saved_model"),
+    model = tf.keras.models.load_model(os.path.join(conf['paths']['models'], conf['model_id'], "saved_model"),
                                        custom_objects={})
     model.compile(optimizer=models.get_optimizer(),
                   loss=models.get_loss(),
@@ -138,11 +127,11 @@ def evaluate(conf, model, train_ds=None, test_ds=None):
         train_ds, test_ds = tfds.load('cifar10', split=['train','test'], as_supervised=True)
         
     r = data_preparation.get_mia_datasets(train_ds, test_ds,
-                                          conf.n_attacker_knowledge,
-                                          conf.n_attack_sample,
+                                          conf['n_attacker_knowledge'],
+                                          conf['n_attack_sample'],
                                           conf.seed)
-    train_performance = model.evaluate(train_ds.batch(conf.batch_size).prefetch(tf.data.AUTOTUNE))                                      
-    test_performance = model.evaluate(test_ds.batch(conf.batch_size).prefetch(tf.data.AUTOTUNE))
+    train_performance = model.evaluate(train_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE))                                      
+    test_performance = model.evaluate(test_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE))
     mia_pred = attacks.attack(model,
                               r['attacker_knowledge'], r['mia_data'],
                               models.get_loss(),
@@ -152,9 +141,9 @@ def evaluate(conf, model, train_ds=None, test_ds=None):
         'adv_std':advantage,
         'test_acc': test_performance[1],
         'train_acc': train_performance[1],
-        'unit_size': conf.unit_size,
-        'alpha' : conf.alpha,
-        'model_id' : conf.model_id,
+        'unit_size': conf['unit_size'],
+        'alpha' : conf['alpha'],
+        'model_id' : conf['model_id'],
         'params' : model.count_params(),
     }
     return results
@@ -169,7 +158,7 @@ if __name__ == "__main__":
     f_name = datetime.now().strftime("%Y%m%d-%H%M%S")
     
     for i, us in enumerate([5,10,15,20,30,40,50,60]):
-        conf.unit_size = us
+        conf['unit_size'] = us
         model = train(conf, train_ds, test_ds)
         
         print("Training completed, model evaluation")
@@ -177,11 +166,11 @@ if __name__ == "__main__":
         results = evaluate(conf, model, train_ds, test_ds)
         print(results)
         if i==0:
-            with open(os.path.join(os.path.dirname(conf.codes_path),f'dump/{f_name}.json'), 'w') as f:
+            with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'w') as f:
                 f.write("[\n")        
-        with open(os.path.join(os.path.dirname(conf.codes_path),f'dump/{f_name}.json'), 'a') as f:
-            f.write("  "+str(results)+",\n")
+        with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'a') as f:
+            f.write("  "+json.dumps(results)+",\n")
     
-    with open(os.path.join(os.path.dirname(conf.codes_path),f'dump/{f_name}.json'), 'a') as f:
+    with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'a') as f:
         f.write("\n]")    
     
