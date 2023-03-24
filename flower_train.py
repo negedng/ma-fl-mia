@@ -132,7 +132,7 @@ def evaluate(conf, model, train_ds=None, test_ds=None):
     r = data_preparation.get_mia_datasets(train_ds, test_ds,
                                           conf['n_attacker_knowledge'],
                                           conf['n_attack_sample'],
-                                          conf.seed)
+                                          conf['seed'])
     train_performance = model.evaluate(train_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE))                                      
     test_performance = model.evaluate(test_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE))
     mia_pred = attacks.attack(model,
