@@ -8,6 +8,7 @@ import numpy as np
 import json
 
 from src.flower_client import FlowerClient
+from src.flower_strategy import SaveAndLogStrategy
 from src import utils, models, data_preparation, attacks
 
 
@@ -27,57 +28,6 @@ def client_fn(cid: str) -> fl.client.Client:
     client.load_data(X_split[int(cid)], Y_split[int(cid)], X_test, Y_test)
     client.init_model()
     return client
-
-
-class SaveAndLogStrategy(fl.server.strategy.FedAvg):
-    """Adding saving and logging to the strategy pipeline"""
-
-    def __init__(self, conf, *args, **kwargs):
-        self.conf = conf
-        self.client_leaving_history = []
-        self.aggregated_parameters = None
-        self.best_loss = np.inf
-        super().__init__(*args, **kwargs)
-
-    def aggregate_fit(
-        self,
-        rnd,
-        results,
-        failures,
-    ):
-        """Aggregate model weights using weighted average and store best checkpoint"""
-        aggregated_parameters_tuple = super().aggregate_fit(rnd, results, failures)
-        self.aggregated_parameters, _ = aggregated_parameters_tuple
-
-        return aggregated_parameters_tuple
-
-    def aggregate_evaluate(
-        self,
-        rnd,
-        results,
-        failures,
-    ):
-        aggregated_result = super().aggregate_evaluate(rnd, results, failures)
-        log(
-            INFO,
-            "Aggregated results: %s",
-            aggregated_result,
-        )
-        if self.aggregated_parameters is not None and aggregated_result[0] < self.best_loss:
-            self.best_loss = aggregated_result[0]
-            log(INFO, "Saving model")
-            aggregated_weights = fl.common.parameters_to_ndarrays(
-                self.aggregated_parameters)
-            model = models.get_model(self.conf['unit_size'])
-            model.compile(optimizer=models.get_optimizer(),
-                          loss=models.get_loss())
-            model.set_weights(aggregated_weights)
-            model.save(os.path.join(conf['paths']['models'],
-                       conf['model_id'], 'saved_model'))
-        if rnd == self.conf['rounds']:
-            # end of training calls
-            pass
-        return aggregated_result
 
 
 def train(conf, train_ds=None, test_ds=None):
