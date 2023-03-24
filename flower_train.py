@@ -18,6 +18,7 @@ global X_test
 global Y_test
 
 conf = utils.load_config()
+os.environ["CUDA_VISIBLE_DEVICES"] = conf["CUDA_VISIBLE_DEVICES"]
 
 
 def client_fn(cid: str) -> fl.client.Client:
@@ -113,6 +114,8 @@ def train(conf, train_ds=None, test_ds=None):
         num_clients=conf['num_clients'],
         config=fl.server.ServerConfig(num_rounds=conf['rounds']),
         strategy=strategy,
+        ray_init_args = conf['ray_init_args'],
+        client_resources = conf['client_resources']
     )
     model = tf.keras.models.load_model(os.path.join(conf['paths']['models'], conf['model_id'], "saved_model"),
                                        custom_objects={})
