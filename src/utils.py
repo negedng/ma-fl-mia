@@ -40,5 +40,5 @@ def predict_losses(model, X, Y, loss_function, verbose=0.5):
     for y, y_pred in iterator:
         l = loss_function(y, y_pred)
         losses.append(l.numpy())
-    return losses
+    return np.array(losses)
 
