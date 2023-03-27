@@ -1,5 +1,5 @@
 {
-    "unit_size" : 64,
+    "unit_size" : 16,
     "num_clients" : 20,
     "paths" : {
         "models" : "data/models/ma-fl-mia/federated/",
@@ -12,5 +12,6 @@
     "n_attack_sample" : 5000,
     "batch_size" : 128,
     "learning_rate" : 0.001,
-    "alpha": 1.0
+    "alpha": 1.0,
+    "ma-mode": "no"
 }

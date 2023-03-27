@@ -4,6 +4,7 @@ from logging import ERROR, INFO
 import os
 import numpy as np
 
+from src import models
 
 class SaveAndLogStrategy(fl.server.strategy.FedAvg):
     """Adding saving and logging to the strategy pipeline"""
@@ -48,8 +49,8 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             model.compile(optimizer=models.get_optimizer(),
                           loss=models.get_loss())
             model.set_weights(aggregated_weights)
-            model.save(os.path.join(conf['paths']['models'],
-                       conf['model_id'], 'saved_model'))
+            model.save(os.path.join(self.conf['paths']['models'],
+                       self.conf['model_id'], 'saved_model'))
         if rnd == self.conf['rounds']:
             # end of training calls
             pass
