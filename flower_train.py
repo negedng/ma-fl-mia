@@ -1,5 +1,6 @@
 import flwr as fl
 from flwr.common.logger import log
+from flwr.common import ndarrays_to_parameters
 from logging import ERROR, INFO
 import shutil
 from datetime import datetime
@@ -47,9 +48,14 @@ def train(conf, train_ds=None, test_ds=None):
     X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf['num_clients'],
                                                    mode="clients", seed=conf['seed'], alpha=conf['alpha'])
 
+    initial_model = models.get_model(conf['unit_size'])
+    initial_model.compile(optimizer=models.get_optimizer(),
+                  loss=models.get_loss(),
+                  metrics=["accuracy"])
     # Create FedAvg strategy
     strategy = SaveAndLogStrategy(
         conf=conf,
+        initial_parameters = ndarrays_to_parameters(initial_model.get_weights()), # avoid smaller models as init
         fraction_fit=1.0,  # Sample 10% of available clients for training
         fraction_evaluate=0.05,  # Sample 5% of available clients for evaluation
         min_fit_clients=1,  # Never sample less than 10 clients for training
@@ -110,7 +116,7 @@ if __name__ == "__main__":
     
     f_name = datetime.now().strftime("%Y%m%d-%H%M%S")
     
-    for i, us in enumerate([5,10,15,20,30,40,50,60]):
+    for i, us in enumerate([20]):
         conf['unit_size'] = us
         model = train(conf, train_ds, test_ds)
         

@@ -1,5 +1,5 @@
 {
-    "unit_size" : 16,
+    "unit_size" : 20,
     "num_clients" : 20,
     "paths" : {
         "models" : "data/models/ma-fl-mia/federated/",
