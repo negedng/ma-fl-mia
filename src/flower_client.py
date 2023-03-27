@@ -3,9 +3,9 @@ from flwr.common.logger import log
 from logging import ERROR, INFO
 import numpy as np
 
-from src import models
+from src import models, ma_utils
 
-    
+
 
 class FlowerClient(fl.client.NumPyClient):
     """Client implementation using Flower federated learning framework"""
@@ -15,11 +15,17 @@ class FlowerClient(fl.client.NumPyClient):
         self.conf = conf
     
     def init_model(self):
-        model = models.get_model(self.conf['unit_size'])
+        self.calculate_unit_size()
+        model = models.get_model(self.conf['local_unit_size'])
         model.compile(optimizer=models.get_optimizer(learning_rate=self.conf['learning_rate']),
                       loss=models.get_loss(),
                       metrics=['accuracy'])
         self.model = model
+    
+    def calculate_unit_size(self):
+        if self.conf['ma-mode']=='heterofl':
+            unit_size = self.conf['unit_size']//2 if self.cid % 2 else self.conf['unit_size']    
+        self.conf['local_unit_size'] = unit_size
     
     def load_data(self, X, Y, X_test, Y_test):
         self.X = X
@@ -30,10 +36,18 @@ class FlowerClient(fl.client.NumPyClient):
     def get_parameters(self, config):
         return self.model.get_weights()
 
+    def set_parameters(self, weights):
+        """set weights either as a simple update or model agnostic way"""
+        if self.conf["ma-mode"] == "heterofl":
+            cp_weights = ma_utils.crop_weights(weights, self.model.get_weights())
+            self.model.set_weights(cp_weights)
+        else:
+            self.model.set_weights(weights)
+
     def fit(self, weights, config):
         """Flower fit passing updated weights, data size and additional params in a dict"""
         try:
-            self.model.set_weights(weights)
+            self.set_parameters(weights)
             history = self.model.fit(
                 self.X,
                 self.Y,
@@ -59,9 +73,15 @@ class FlowerClient(fl.client.NumPyClient):
 
     def evaluate(self, weights, config):
         try:
-            self.model.set_weights(weights)
-            loss, accuracy = self.model.evaluate(self.X_test, self.Y_test, verbose=0)
-            return loss, len(self.X_test), {"accuracy": accuracy}
+            self.set_parameters(weights)
+            loss, local_accuracy = self.model.evaluate(self.X_test, self.Y_test, verbose=0)
+            g_model = models.get_model(self.conf['unit_size'])
+            g_model.set_weights(weights)
+            g_model.compile(optimizer=models.get_optimizer(learning_rate=self.conf['learning_rate']),
+                      loss=models.get_loss(),
+                      metrics=['accuracy'])
+            loss, accuracy = g_model.evaluate(self.X_test, self.Y_test, verbose=0)
+            return loss, len(self.X_test), {"local_accuracy": local_accuracy, "accuracy": accuracy}
         except Exception as e:
             log(
                 ERROR,

@@ -1,10 +1,26 @@
 import flwr as fl
 from flwr.common.logger import log
 from logging import ERROR, INFO
+from logging import WARNING
+from typing import Callable, Dict, List, Optional, Tuple, Union
+from flwr.server.client_proxy import ClientProxy
+from flwr.common import (
+    EvaluateIns,
+    EvaluateRes,
+    FitIns,
+    FitRes,
+    MetricsAggregationFn,
+    NDArrays,
+    Parameters,
+    Scalar,
+    ndarrays_to_parameters,
+    parameters_to_ndarrays,
+)
+from flwr.server.strategy.aggregate import aggregate
 import os
 import numpy as np
 
-from src import models
+from src import models, ma_utils    
 
 class SaveAndLogStrategy(fl.server.strategy.FedAvg):
     """Adding saving and logging to the strategy pipeline"""
@@ -18,15 +34,37 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
 
     def aggregate_fit(
         self,
-        rnd,
-        results,
-        failures,
-    ):
-        """Aggregate model weights using weighted average and store best checkpoint"""
-        aggregated_parameters_tuple = super().aggregate_fit(rnd, results, failures)
-        self.aggregated_parameters, _ = aggregated_parameters_tuple
+        server_round: int,
+        results: List[Tuple[ClientProxy, FitRes]],
+        failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]],
+    ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
+        """Aggregate fit results using weighted average."""
+        if not results:
+            return None, {}
+        # Do not aggregate if there are failures and failures are not accepted
+        if not self.accept_failures and failures:
+            return None, {}
 
-        return aggregated_parameters_tuple
+        # Convert results
+        weights_results = [
+            (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples)
+            for _, fit_res in results
+        ]
+        if self.conf['ma-mode'] == 'heterofl':
+            parameters_aggregated = ndarrays_to_parameters(ma_utils.aggregate_hetero(weights_results))
+        else:
+            parameters_aggregated = ndarrays_to_parameters(aggregate(weights_results))
+
+        # Aggregate custom metrics if aggregation fn was provided
+        metrics_aggregated = {}
+        if self.fit_metrics_aggregation_fn:
+            fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
+            metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
+        elif server_round == 1:  # Only log this warning once
+            log(WARNING, "No fit_metrics_aggregation_fn provided")
+        self.aggregated_parameters  = parameters_aggregated # Why can't I access this at eval?
+        return parameters_aggregated, metrics_aggregated
+
 
     def aggregate_evaluate(
         self,

@@ -13,5 +13,5 @@
     "batch_size" : 128,
     "learning_rate" : 0.001,
     "alpha": 1.0,
-    "ma-mode": "no"
+    "ma-mode": "heterofl"
 }
