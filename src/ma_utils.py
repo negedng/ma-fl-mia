@@ -1,6 +1,4 @@
 import numpy as np
-from typing import List, Tuple
-from flwr.common import NDArray, NDArrays
 
 
 def take(a, new_shape):
@@ -11,7 +9,7 @@ def take(a, new_shape):
     return z
 
 
-def crop_weights(w_from: List[NDArrays], w_to: List[NDArrays]) -> List[NDArrays]:
+def crop_weights(w_from, w_to):
     """Crop top-left matrix of weights from first list of arrays to second's shape"""
     w_ret = []
     for l_from, l_to in zip(w_from, w_to):
@@ -20,10 +18,11 @@ def crop_weights(w_from: List[NDArrays], w_to: List[NDArrays]) -> List[NDArrays]
     return w_ret
 
 
-def aggregate_hetero(results: List[Tuple[NDArrays, int]]) -> NDArrays:
+def aggregate_hetero(results):
     """Compute weighted average with different model sizes."""
     def aggregate_layer(layer_updates, num_examples_list):
         """Padding layers with 0 to max size, then average them"""
+        # In tensorflow biases have their list items in the layer list
         # Get the layer's largest form
         max_ch = np.max([np.shape(l) for l in layer_updates], axis=0)
         layers_padded = []
