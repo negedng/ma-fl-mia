@@ -24,7 +24,9 @@ class FlowerClient(fl.client.NumPyClient):
     
     def calculate_unit_size(self):
         if self.conf['ma-mode']=='heterofl':
-            unit_size = self.conf['unit_size']//2 if self.cid % 2 else self.conf['unit_size']    
+            unit_size = self.conf['unit_size']//2 if self.cid % 2 else self.conf['unit_size']
+        else:
+            unit_size = self.conf['unit_size'] 
         self.conf['local_unit_size'] = unit_size
     
     def load_data(self, X, Y, X_test, Y_test):
