@@ -91,13 +91,10 @@ def evaluate(conf, model, train_ds=None, test_ds=None):
                                           conf['seed'])
     train_performance = model.evaluate(train_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE))                                      
     test_performance = model.evaluate(test_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE))
-    mia_pred = attacks.attack(model,
+    mia_preds = attacks.attack(model,
                               r['attacker_knowledge'], r['mia_data'],
-                              models.get_loss(),
-                              attacks.get_af())
-    advantage = attacks.calculate_advantage(r['mia_labels'], mia_pred)
+                              models.get_loss())
     results = {
-        'adv_std':advantage,
         'test_acc': test_performance[1],
         'train_acc': train_performance[1],
         'unit_size': conf['unit_size'],
@@ -105,6 +102,9 @@ def evaluate(conf, model, train_ds=None, test_ds=None):
         'model_id' : conf['model_id'],
         'params' : model.count_params(),
     }
+    for k, v in mia_preds.items():
+        results[k] = attacks.calculate_advantage(r['mia_labels'], v)
+
     return results
 
 if __name__ == "__main__":
@@ -116,7 +116,7 @@ if __name__ == "__main__":
     
     f_name = datetime.now().strftime("%Y%m%d-%H%M%S")
     
-    for i, us in enumerate([20]):
+    for i, us in enumerate([80]):
         conf['unit_size'] = us
         model = train(conf, train_ds, test_ds)
         

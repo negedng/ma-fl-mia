@@ -68,11 +68,13 @@ def get_mia_datasets(train_ds, test_ds, n_attacker_knowledge=100, n_attack_sampl
     and sample from train and test set for attack evaluation."""
 
     train_ds_attacker = train_ds.shuffle(10000, seed=seed).take(n_attacker_knowledge)
+    test_ds_attacker = test_ds.shuffle(10000, seed=seed).take(n_attacker_knowledge)
 
     test_from_test_ds = test_ds.shuffle(10000, seed=seed).take(n_attack_sample)
     test_from_train_ds = train_ds.shuffle(10000, seed=seed).take(n_attack_sample)
 
     x_train_attacker, y_train_attacker = get_np_from_tfds(train_ds_attacker)
+    x_test_attacker, y_test_attacker = get_np_from_tfds(test_ds_attacker)
     x_test_test, y_test_test = get_np_from_tfds(test_from_test_ds)
     x_test_train, y_test_train = get_np_from_tfds(test_from_train_ds)
 
@@ -80,9 +82,14 @@ def get_mia_datasets(train_ds, test_ds, n_attacker_knowledge=100, n_attack_sampl
     y_mia_test = np.concatenate([y_test_train, y_test_test])
     mia_true = [1.0] * n_attack_sample + [0.0] * n_attack_sample
     mia_true = np.array(mia_true)
-
+    
+    attacker_knowledge = {
+        "in_train_data" : (x_train_attacker, y_train_attacker),
+        "not_train_data" : (x_test_attacker, y_test_attacker),
+    }
+    
     ret = {
-        "attacker_knowledge" : (x_train_attacker, y_train_attacker),
+        "attacker_knowledge": attacker_knowledge,
         "mia_data" : (x_mia_test, y_mia_test),
         "mia_labels" : mia_true 
     }

@@ -1,17 +1,17 @@
 {
-    "unit_size" : 20,
+    "unit_size" : 40,
     "num_clients" : 20,
     "paths" : {
         "models" : "data/models/ma-fl-mia/federated/",
         "code" : "data/codes/ma-fl-mia/flower_train.py"
         },
     "seed" : 20,
-    "rounds" : 30,
+    "rounds" : 5,
     "epochs" : 1,
     "n_attacker_knowledge" : 100,
     "n_attack_sample" : 5000,
     "batch_size" : 128,
     "learning_rate" : 0.001,
     "alpha": 1.0,
-    "ma-mode": "heterofl"
+    "ma-mode": "no"
 }
