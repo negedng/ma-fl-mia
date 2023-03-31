@@ -50,7 +50,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples)
             for _, fit_res in results
         ]
-        if self.conf['ma-mode'] == 'heterofl':
+        if self.conf['ma_mode'] == 'heterofl':
             parameters_aggregated = ndarrays_to_parameters(ma_utils.aggregate_hetero(weights_results))
         else:
             parameters_aggregated = ndarrays_to_parameters(aggregate(weights_results))
@@ -80,15 +80,17 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
         )
         if self.aggregated_parameters is not None and aggregated_result[0] < self.best_loss:
             self.best_loss = aggregated_result[0]
-            log(INFO, "Saving model")
+            save_path = os.path.join(self.conf['paths']['models'],
+                                     self.conf['model_id'],
+                                     'saved_model')
+            log(INFO, "Saving model to %s", save_path)
             aggregated_weights = fl.common.parameters_to_ndarrays(
                 self.aggregated_parameters)
-            model = models.get_model(self.conf['unit_size'])
+            model = models.get_model(unit_size=self.conf['unit_size'], conf=self.conf)
             model.compile(optimizer=models.get_optimizer(),
                           loss=models.get_loss())
             model.set_weights(aggregated_weights)
-            model.save(os.path.join(self.conf['paths']['models'],
-                       self.conf['model_id'], 'saved_model'))
+            model.save(save_path)
         if rnd == self.conf['rounds']:
             # end of training calls
             pass

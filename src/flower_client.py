@@ -16,15 +16,30 @@ class FlowerClient(fl.client.NumPyClient):
     
     def init_model(self):
         self.calculate_unit_size()
-        model = models.get_model(self.conf['local_unit_size'])
+        model = models.get_model(unit_size=self.conf['local_unit_size'], training_phase=True, conf=self.conf)
         model.compile(optimizer=models.get_optimizer(learning_rate=self.conf['learning_rate']),
                       loss=models.get_loss(),
                       metrics=['accuracy'])
         self.model = model
     
     def calculate_unit_size(self):
-        if self.conf['ma-mode']=='heterofl':
-            unit_size = self.conf['unit_size']//2 if self.cid % 2 else self.conf['unit_size']
+        if self.conf['ma_mode']=='heterofl':
+            if self.conf['scale_mode']=='standard':
+                if self.len_train_data > 2500:
+                    unit_size = self.conf['unit_size']
+                elif self.len_train_data > 1250:
+                    unit_size = self.conf['unit_size'] // 2
+                elif self.len_train_data >750:
+                    unit_size = self.conf['unit_size'] // 4
+                else:
+                    unit_size = self.conf['unit_size'] // 8
+            elif self.conf['scale_mode']=='basic':
+                if self.len_train_data > 2500:
+                    unit_size = self.conf['unit_size']
+                else:
+                    unit_size = self.conf['unit_size'] // 2
+            else:
+                unit_size = self.conf['unit_size']
         else:
             unit_size = self.conf['unit_size'] 
         self.conf['local_unit_size'] = unit_size
@@ -34,13 +49,14 @@ class FlowerClient(fl.client.NumPyClient):
         self.Y = Y
         self.X_test = X_test
         self.Y_test = Y_test
+        self.len_train_data = len(X)
   
     def get_parameters(self, config):
         return self.model.get_weights()
 
     def set_parameters(self, weights):
         """set weights either as a simple update or model agnostic way"""
-        if self.conf["ma-mode"] == "heterofl":
+        if self.conf["ma_mode"] == "heterofl":
             cp_weights = ma_utils.crop_weights(weights, self.model.get_weights())
             self.model.set_weights(cp_weights)
         else:
@@ -77,7 +93,7 @@ class FlowerClient(fl.client.NumPyClient):
         try:
             self.set_parameters(weights)
             loss, local_accuracy = self.model.evaluate(self.X_test, self.Y_test, verbose=0)
-            g_model = models.get_model(self.conf['unit_size'])
+            g_model = models.get_model(unit_size=self.conf['unit_size'], conf=self.conf)
             g_model.set_weights(weights)
             g_model.compile(optimizer=models.get_optimizer(learning_rate=self.conf['learning_rate']),
                       loss=models.get_loss(),

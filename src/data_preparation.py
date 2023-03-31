@@ -5,7 +5,7 @@ import os
 from src.utils import get_np_from_tfds
 
 
-def dirichlet_split(num_classes, num_clients, alpha=1.0, mode="classes", seed=None):
+def dirichlet_split(num_classes, num_clients, dirichlet_alpha=1.0, mode="classes", seed=None):
     """Dirichlet distribution of the data points, 
     with mode 'classes', 1.0 is distributed between num_classes class, 
     with 'clients' it is distributed between num_clients clients"""
@@ -17,9 +17,9 @@ def dirichlet_split(num_classes, num_clients, alpha=1.0, mode="classes", seed=No
         b = num_classes
     else:
         raise ValueError(f'unrecognized mode {mode}')
-    if np.isscalar(alpha):
-        alpha = np.repeat(alpha, a)
-    split_norm = np.random.default_rng(seed).dirichlet(alpha, b)
+    if np.isscalar(dirichlet_alpha):
+        dirichlet_alpha = np.repeat(dirichlet_alpha, a)
+    split_norm = np.random.default_rng(seed).dirichlet(dirichlet_alpha, b)
     return split_norm
 
 

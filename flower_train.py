@@ -45,10 +45,11 @@ def train(conf, train_ds=None, test_ds=None):
         train_ds, test_ds = tfds.load('cifar10', split=['train','test'], as_supervised=True)
         
     X_train, Y_train = utils.get_np_from_tfds(train_ds)
+    conf['len_total_data'] = len(X_train)
     X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf['num_clients'],
-                                                   mode="clients", seed=conf['seed'], alpha=conf['alpha'])
+                                                   mode="clients", seed=conf['seed'], dirichlet_alpha=conf['dirichlet_alpha'])
 
-    initial_model = models.get_model(conf['unit_size'])
+    initial_model = models.get_model(training_phase=True, unit_size=conf['unit_size'], conf=conf)
     initial_model.compile(optimizer=models.get_optimizer(),
                   loss=models.get_loss(),
                   metrics=["accuracy"])
@@ -73,8 +74,8 @@ def train(conf, train_ds=None, test_ds=None):
         ray_init_args = conf['ray_init_args'],
         client_resources = conf['client_resources']
     )
-    model = tf.keras.models.load_model(os.path.join(conf['paths']['models'], conf['model_id'], "saved_model"),
-                                       custom_objects={})
+    model = models.get_model(unit_size=conf['unit_size'], conf=conf)
+    model.load_weights(os.path.join(conf['paths']['models'], conf['model_id'], "saved_model"))
     model.compile(optimizer=models.get_optimizer(),
                   loss=models.get_loss(),
                   metrics=["accuracy"])
@@ -98,9 +99,11 @@ def evaluate(conf, model, train_ds=None, test_ds=None):
         'test_acc': test_performance[1],
         'train_acc': train_performance[1],
         'unit_size': conf['unit_size'],
-        'alpha' : conf['alpha'],
+        'alpha' : conf['dirichlet_alpha'],
         'model_id' : conf['model_id'],
         'params' : model.count_params(),
+        "model_mode": conf["model_mode"],
+        "scale_mode": conf["scale_mode"]
     }
     for k, v in mia_preds.items():
         results[k] = attacks.calculate_advantage(r['mia_labels'], v)
@@ -116,19 +119,45 @@ if __name__ == "__main__":
     
     f_name = datetime.now().strftime("%Y%m%d-%H%M%S")
     
-    for i, us in enumerate([80]):
-        conf['unit_size'] = us
-        model = train(conf, train_ds, test_ds)
-        
-        print("Training completed, model evaluation")
-        # Evaluate
-        results = evaluate(conf, model, train_ds, test_ds)
-        print(results)
-        if i==0:
-            with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'w') as f:
-                f.write("[\n")        
-        with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'a') as f:
-            f.write("  "+json.dumps(results)+",\n")
+    aa = [0.5,
+          0.3333333333333333,
+          0.25,
+          0.2,
+          0.16666666666666666,
+          0.14285714285714285,
+          0.125,
+          0.1111111111111111,
+          0.1,
+          0.09090909090909091,
+          0.08333333333333333,
+          0.07692307692307693,
+          0.07142857142857142,
+          0.06666666666666667,
+          0.0625,
+          0.058823529411764705,
+          0.05555555555555555,
+          0.05263157894736842,
+          0.05,
+          0.047619047619047616]
+    for mm in ["simple_CNN", "diao_CNN"]:
+        for sm in ['basic', 'standard', 'no']:
+            for alpha in [1.0, 0.1, aa]:
+                for i in range(3):
+                    conf["model_mode"] = mm
+                    conf["scale_mode"] = sm
+                    conf["dirichlet_alpha"] = alpha
+                    
+                    model = train(conf, train_ds, test_ds)
+                    
+                    print("Training completed, model evaluation")
+                    # Evaluate
+                    results = evaluate(conf, model, train_ds, test_ds)
+                    print(results)
+                    if i==0:
+                        with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'w') as f:
+                            f.write("[\n")        
+                    with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'a') as f:
+                        f.write("  "+json.dumps(results)+",\n")
     
     with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'a') as f:
         f.write("\n]")    
