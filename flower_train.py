@@ -139,8 +139,10 @@ if __name__ == "__main__":
           0.05263157894736842,
           0.05,
           0.047619047619047616]
-    for mm in ["simple_CNN", "diao_CNN"]:
-        for sm in ['basic', 'standard', 'no']:
+    with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'w') as f:
+        f.write("[\n")  
+    for mm in ["diao_CNN", "simple_CNN"]:
+        for sm in ['basic', 'no',  'standard']:
             for alpha in [1.0, 0.1, aa]:
                 for i in range(3):
                     conf["model_mode"] = mm
@@ -153,9 +155,7 @@ if __name__ == "__main__":
                     # Evaluate
                     results = evaluate(conf, model, train_ds, test_ds)
                     print(results)
-                    if i==0:
-                        with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'w') as f:
-                            f.write("[\n")        
+      
                     with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'a') as f:
                         f.write("  "+json.dumps(results)+",\n")
     
