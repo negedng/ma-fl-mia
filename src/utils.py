@@ -15,9 +15,9 @@ def get_np_from_tfds(ds):
 
 def load_config(env_path='env.json', config_path='config.json'):
     """Check for an env root file"""
-    with open("env.json", "r") as f:
+    with open(env_path, "r") as f:
         env = json.load(f)
-    with open("config.json", "r") as f:
+    with open(config_path, "r") as f:
         config = json.load(f)
     for k,v in config['paths'].items():
         config['paths'][k] = str(os.path.join(env['root_path'], v))
@@ -41,3 +41,11 @@ def predict_losses(model, X, Y, loss_function, verbose=0.5):
         losses.append(l.numpy())
     return np.array(losses)
 
+
+def select_n(X_train, Y_train, n):
+    indexes = np.array([], dtype=int)
+    classes = np.unique(Y_train)
+    n_cls = n // len(classes)
+    for c in classes:
+        indexes = np.append(indexes, np.argwhere(Y_train==c)[:n_cls])
+    return X_train[indexes], Y_train[indexes]

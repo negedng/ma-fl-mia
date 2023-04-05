@@ -16,8 +16,8 @@ from src import utils, models, data_preparation, attacks
 global conf 
 global X_split
 global Y_split 
-global X_test
-global Y_test
+global X_val
+global Y_val
 
 conf = utils.load_config()
 os.environ["CUDA_VISIBLE_DEVICES"] = conf["CUDA_VISIBLE_DEVICES"]
@@ -26,12 +26,12 @@ os.environ["CUDA_VISIBLE_DEVICES"] = conf["CUDA_VISIBLE_DEVICES"]
 def client_fn(cid: str) -> fl.client.Client:
     """Prepare flower client from ID (following flower documentation)"""
     client = FlowerClient(int(cid), conf)
-    client.load_data(X_split[int(cid)], Y_split[int(cid)], X_test, Y_test)
+    client.load_data(X_split[int(cid)], Y_split[int(cid)], X_val, Y_val)
     client.init_model()
     return client
 
 
-def train(conf, train_ds=None, test_ds=None):
+def train(conf, train_ds=None):
     global X_split
     global Y_split
     conf['model_id'] = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -42,7 +42,7 @@ def train(conf, train_ds=None, test_ds=None):
         json.dump(conf, f, indent=4)
     
     if train_ds is None:
-        train_ds, test_ds = tfds.load('cifar10', split=['train','test'], as_supervised=True)
+        train_ds, _, _ = tfds.load('cifar10', split=['train[5%:]','train[:5%]','test'], as_supervised=True)
         
     X_train, Y_train = utils.get_np_from_tfds(train_ds)
     conf['len_total_data'] = len(X_train)
@@ -82,21 +82,23 @@ def train(conf, train_ds=None, test_ds=None):
     return model
 
 
-def evaluate(conf, model, train_ds=None, test_ds=None):
+def evaluate(conf, model, train_ds=None, val_ds=None, test_ds=None):
     if train_ds is None:
-        train_ds, test_ds = tfds.load('cifar10', split=['train','test'], as_supervised=True)
+        train_ds, val_ds, test_ds = tfds.load('cifar10', split=['train[5%:]','train[:5%]','test'], as_supervised=True)
         
     r = data_preparation.get_mia_datasets(train_ds, test_ds,
                                           conf['n_attacker_knowledge'],
                                           conf['n_attack_sample'],
                                           conf['seed'])
-    train_performance = model.evaluate(train_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE))                                      
+    train_performance = model.evaluate(train_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE)) 
+    val_performance = model.evaluate(val_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE))                                      
     test_performance = model.evaluate(test_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE))
     mia_preds = attacks.attack(model,
                               r['attacker_knowledge'], r['mia_data'],
                               models.get_loss())
     results = {
         'test_acc': test_performance[1],
+        'val_acc': val_performance[1],
         'train_acc': train_performance[1],
         'unit_size': conf['unit_size'],
         'alpha' : conf['dirichlet_alpha'],
@@ -113,10 +115,12 @@ def evaluate(conf, model, train_ds=None, test_ds=None):
 if __name__ == "__main__":
     import tensorflow as tf 
     import tensorflow_datasets as tfds
-    
-    train_ds, test_ds = tfds.load('cifar10', split=['train','test'], as_supervised=True)
-    X_test, Y_test = utils.get_np_from_tfds(test_ds)
-    
+    if conf['val_split']:
+        train_ds, val_ds, test_ds = tfds.load('cifar10', split=['train[5%:]','train[:5%]','test'], as_supervised=True)
+        X_val, Y_val = utils.get_np_from_tfds(val_ds)        
+    else:
+        train_ds, test_ds = tfds.load('cifar10', split=['train','test'], as_supervised=True)
+        X_val, Y_val = utils.get_np_from_tfds(test_ds)
     f_name = datetime.now().strftime("%Y%m%d-%H%M%S")
     
     aa = [0.5,
@@ -141,19 +145,19 @@ if __name__ == "__main__":
           0.047619047619047616]
     with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'w') as f:
         f.write("[\n")  
-    for mm in ["diao_CNN", "simple_CNN"]:
-        for sm in ['basic', 'no',  'standard']:
-            for alpha in [1.0, 0.1, aa]:
-                for i in range(3):
+    for mm in ["diao_CNN"]:
+        for alpha in [0.1, aa, 1.0]:
+            for i in range(3):
+                for sm in ['no', 'standard', 'basic']:
                     conf["model_mode"] = mm
                     conf["scale_mode"] = sm
                     conf["dirichlet_alpha"] = alpha
                     
-                    model = train(conf, train_ds, test_ds)
+                    model = train(conf, train_ds)
                     
                     print("Training completed, model evaluation")
                     # Evaluate
-                    results = evaluate(conf, model, train_ds, test_ds)
+                    results = evaluate(conf, model, train_ds, val_ds, test_ds)
                     print(results)
       
                     with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'a') as f:
