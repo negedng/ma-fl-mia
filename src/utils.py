@@ -15,13 +15,15 @@ def get_np_from_tfds(ds):
 
 def load_config(env_path='env.json', config_path='config.json'):
     """Check for an env root file"""
-    with open(env_path, "r") as f:
-        env = json.load(f)
     with open(config_path, "r") as f:
         config = json.load(f)
-    for k,v in config['paths'].items():
-        config['paths'][k] = str(os.path.join(env['root_path'], v))
+    if env_path is None:
+        return config
+    with open(env_path, "r") as f:
+            env = json.load(f)
     config.update(env)
+    for k,v in config['paths'].items():
+        config['paths'][k] = str(os.path.join(config['root_path'], v))
     return config
 
 
@@ -29,8 +31,8 @@ def predict_losses(model, X, Y, loss_function, verbose=0.5):
     """Predict on model but returns with each individual loss"""
     losses = []
     
-    p_verbose = 1 if verbose>0.75 else 0
-    Y_pred = model.predict(X, p_verbose)
+    p_verbose = 1.0 if verbose>0.75 else 0.0
+    Y_pred = model.predict(X, verbose=p_verbose)
     
     iterator = zip(Y, Y_pred)
     if verbose>0.1:

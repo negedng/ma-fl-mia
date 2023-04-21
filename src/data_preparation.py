@@ -23,14 +23,21 @@ def dirichlet_split(num_classes, num_clients, dirichlet_alpha=1.0, mode="classes
     return split_norm
 
 
-def split_data(X, Y, num_clients, *args, **kwargs):
+def split_data(X, Y, num_clients, split=None, split_mode='dirichlet', *args, **kwargs):
     """Split data in X,Y between 'num_clients' number of clients"""
     assert len(X)==len(Y)
     classes = np.unique(Y)
     num_classes = len(classes)
     
-    split = dirichlet_split(num_classes, num_clients, *args, **kwargs)
-    
+    if split is None:
+        if split_mode=='dirichlet':
+            split = dirichlet_split(num_classes, num_clients, *args, **kwargs)
+        elif split_mode=='binary':
+            split = [4/50]*10 + [1/50]*10
+            split =[split]*10
+            split = np.array(split)
+        else:
+            ValueError(f'Split mode not recognized {split_mode}')
     X_split = None
     Y_split = None
     
@@ -67,11 +74,11 @@ def get_mia_datasets(train_ds, test_ds, n_attacker_knowledge=100, n_attack_sampl
     """Get attacker training data knowledge 
     and sample from train and test set for attack evaluation."""
 
-    train_ds_attacker = train_ds.shuffle(10000, seed=seed).take(n_attacker_knowledge)
+    train_ds_attacker = train_ds.shuffle(50000, seed=seed).take(n_attacker_knowledge)
     test_ds_attacker = test_ds.shuffle(10000, seed=seed).take(n_attacker_knowledge)
 
     test_from_test_ds = test_ds.shuffle(10000, seed=seed).take(n_attack_sample)
-    test_from_train_ds = train_ds.shuffle(10000, seed=seed).take(n_attack_sample)
+    test_from_train_ds = train_ds.shuffle(50000, seed=seed).take(n_attack_sample)
 
     x_train_attacker, y_train_attacker = get_np_from_tfds(train_ds_attacker)
     x_test_attacker, y_test_attacker = get_np_from_tfds(test_ds_attacker)

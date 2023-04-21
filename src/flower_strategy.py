@@ -82,7 +82,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             self.best_loss = aggregated_result[0]
             save_path = os.path.join(self.conf['paths']['models'],
                                      self.conf['model_id'],
-                                     'saved_model')
+                                     'saved_model_best')
             log(INFO, "Saving model to %s", save_path)
             aggregated_weights = fl.common.parameters_to_ndarrays(
                 self.aggregated_parameters)
@@ -93,6 +93,16 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             model.save(save_path)
         if rnd == self.conf['rounds']:
             # end of training calls
-            pass
+            save_path = os.path.join(self.conf['paths']['models'],
+                                     self.conf['model_id'],
+                                     'saved_model')
+            log(INFO, "Saving model to %s", save_path)
+            aggregated_weights = fl.common.parameters_to_ndarrays(
+                self.aggregated_parameters)
+            model = models.get_model(unit_size=self.conf['unit_size'], conf=self.conf)
+            model.compile(optimizer=models.get_optimizer(),
+                          loss=models.get_loss())
+            model.set_weights(aggregated_weights)
+            model.save(save_path)
         return aggregated_result
 

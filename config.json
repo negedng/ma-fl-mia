@@ -6,15 +6,17 @@
         },
     "seed" : 20,
     "epochs" : 1,
-    "rounds": 30,
+    "rounds": 50,
     "n_attacker_knowledge" : 100,
     "n_attack_sample" : 5000,
     "batch_size" : 128,
     "learning_rate" : 0.001,
+    "weight_clients": false,
+    "split_mode": "binary",
     "dirichlet_alpha": 1.0,
     "ma_mode": "heterofl",
     "unit_size" : 64,
     "model_mode": "diao_CNN",
-    "scale_mode": "basic",
-    "val_split": true
+    "scale_mode": "no",
+    "val_split": false
 }

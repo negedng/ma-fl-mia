@@ -32,6 +32,7 @@ def attack(model, attacker_knowledge, mia_data, loss_function, *args, **kwargs):
     """Attacker performs attack"""
     
     loss_train_attacker, loss_test_attacker = attacker_observation(model, attacker_knowledge, loss_function, *args, **kwargs)
+    cls_threshold = yeom_classwise_threshold(model, attacker_knowledge, loss_function, *args, **kwargs)    
     avg_threshold = yeom_standard_threshold(loss_train_attacker)
     best_threshold = yeom_best_threshold(loss_train_attacker, loss_test_attacker)
     
@@ -41,6 +42,7 @@ def attack(model, attacker_knowledge, mia_data, loss_function, *args, **kwargs):
     attack_preds = {}
     attack_preds["adv_std"] = yeom_mi_attack(loss_mia, avg_threshold)
     attack_preds["adv_pow"] = yeom_mi_attack(loss_mia, best_threshold)
+    attack_preds["adv_cls"] = classwise_attack(loss_mia, cls_threshold, y_mia_data)
     
     return attack_preds
 
@@ -77,4 +79,29 @@ def yeom_best_threshold(train_losses, not_train_losses):
     best_threshold = mean_loss + std_dev*coeffs[np.argmax(advantages)]
 
     return best_threshold
-      
+
+
+def yeom_classwise_threshold(model, attacker_knowledge, loss_function, *args, **kwargs):
+    """Avg for each class"""
+    train_attacker = attacker_knowledge['in_train_data']
+    test_attacker = attacker_knowledge['not_train_data']
+    x_train_attacker, y_train_attacker = train_attacker
+    x_test_attacker, y_test_attacker = test_attacker
+    thresholds = {}
+    for cls in np.unique(y_train_attacker):
+        x_train_attacker_cls = x_train_attacker[y_train_attacker==cls]
+        y_train_attacker_cls = y_train_attacker[y_train_attacker==cls]
+        y_pred_cls = model.predict(x_train_attacker_cls, verbose=0)
+        loss_train_attacker_cls = loss_function(y_train_attacker_cls, y_pred_cls)    
+        thresholds[cls] = loss_train_attacker_cls.numpy()
+    return thresholds
+
+
+def classwise_attack(loss_mia, thresholds, y_mia_data):
+    pred = np.ones(len(y_mia_data), dtype=bool)
+    for cls in thresholds.keys():
+        cls_idx = np.where(y_mia_data==cls)
+        l = loss_mia[cls_idx]
+        mia_pred = yeom_mi_attack(l, thresholds[cls])
+        pred[cls_idx] = mia_pred
+    return pred 

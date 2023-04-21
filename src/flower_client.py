@@ -38,8 +38,15 @@ class FlowerClient(fl.client.NumPyClient):
                     unit_size = self.conf['unit_size']
                 else:
                     unit_size = self.conf['unit_size'] // 2
-            else:
+            elif self.conf["scale_mode"]=="1250":
+                if self.len_train_data > 1250:
+                    unit_size = self.conf['unit_size']
+                else:
+                    unit_size = self.conf['unit_size'] // 2
+            elif self.conf["scale_mode"]=='no':
                 unit_size = self.conf['unit_size']
+            else:
+            	raise ValueError('scale mode not recognized{self.conf["scale_mode"]}')
         else:
             unit_size = self.conf['unit_size'] 
         self.conf['local_unit_size'] = unit_size
@@ -87,7 +94,8 @@ class FlowerClient(fl.client.NumPyClient):
                 str(e),
             )
             raise Error("Client training terminated unexpectedly")
-        return self.model.get_weights(), len(self.X), shared_metrics
+        w = len(self.X) if self.conf['weight_clients'] else 1
+        return self.model.get_weights(), w, shared_metrics
 
     def evaluate(self, weights, config):
         try:

@@ -10,7 +10,7 @@ import json
 
 from src.flower_client import FlowerClient
 from src.flower_strategy import SaveAndLogStrategy
-from src import utils, models, data_preparation, attacks
+from src import utils, models, data_preparation, attacks, metrics
 
 
 global conf 
@@ -46,7 +46,7 @@ def train(conf, train_ds=None):
         
     X_train, Y_train = utils.get_np_from_tfds(train_ds)
     conf['len_total_data'] = len(X_train)
-    X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf['num_clients'],
+    X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf['num_clients'], split_mode=conf['split_mode'],
                                                    mode="clients", seed=conf['seed'], dirichlet_alpha=conf['dirichlet_alpha'])
 
     initial_model = models.get_model(training_phase=True, unit_size=conf['unit_size'], conf=conf)
@@ -79,39 +79,12 @@ def train(conf, train_ds=None):
     model.compile(optimizer=models.get_optimizer(),
                   loss=models.get_loss(),
                   metrics=["accuracy"])
-    return model
+    return model, conf
 
 
-def evaluate(conf, model, train_ds=None, val_ds=None, test_ds=None):
-    if train_ds is None:
-        train_ds, val_ds, test_ds = tfds.load('cifar10', split=['train[5%:]','train[:5%]','test'], as_supervised=True)
+
+                                                  
         
-    r = data_preparation.get_mia_datasets(train_ds, test_ds,
-                                          conf['n_attacker_knowledge'],
-                                          conf['n_attack_sample'],
-                                          conf['seed'])
-    train_performance = model.evaluate(train_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE)) 
-    val_performance = model.evaluate(val_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE))                                      
-    test_performance = model.evaluate(test_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE))
-    mia_preds = attacks.attack(model,
-                              r['attacker_knowledge'], r['mia_data'],
-                              models.get_loss())
-    results = {
-        'test_acc': test_performance[1],
-        'val_acc': val_performance[1],
-        'train_acc': train_performance[1],
-        'unit_size': conf['unit_size'],
-        'alpha' : conf['dirichlet_alpha'],
-        'model_id' : conf['model_id'],
-        'params' : model.count_params(),
-        "model_mode": conf["model_mode"],
-        "scale_mode": conf["scale_mode"]
-    }
-    for k, v in mia_preds.items():
-        results[k] = attacks.calculate_advantage(r['mia_labels'], v)
-
-    return results
-
 if __name__ == "__main__":
     import tensorflow as tf 
     import tensorflow_datasets as tfds
@@ -119,6 +92,7 @@ if __name__ == "__main__":
         train_ds, val_ds, test_ds = tfds.load('cifar10', split=['train[5%:]','train[:5%]','test'], as_supervised=True)
         X_val, Y_val = utils.get_np_from_tfds(val_ds)        
     else:
+        val_ds = None
         train_ds, test_ds = tfds.load('cifar10', split=['train','test'], as_supervised=True)
         X_val, Y_val = utils.get_np_from_tfds(test_ds)
     f_name = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -146,22 +120,28 @@ if __name__ == "__main__":
     with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'w') as f:
         f.write("[\n")  
     for mm in ["diao_CNN"]:
-        for alpha in [0.1, aa, 1.0]:
-            for i in range(3):
-                for sm in ['no', 'standard', 'basic']:
+        for i in range(1):
+            for alpha in [1000]:
+                for sm in ['1250']:
                     conf["model_mode"] = mm
                     conf["scale_mode"] = sm
                     conf["dirichlet_alpha"] = alpha
                     
-                    model = train(conf, train_ds)
+                    model, model_conf = train(conf, train_ds)
                     
                     print("Training completed, model evaluation")
                     # Evaluate
-                    results = evaluate(conf, model, train_ds, val_ds, test_ds)
+                    results = metrics.evaluate(model_conf, model, train_ds, val_ds, test_ds)
                     print(results)
       
                     with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'a') as f:
                         f.write("  "+json.dumps(results)+",\n")
+                    
+                    # Per client eval
+                    results = metrics.evaluate_per_client(model_conf, model, X_split, Y_split, train_ds, val_ds, test_ds)
+                    with open(os.path.join(model_conf['paths']['models'], model_conf['model_id'], "client_results.json"), 'w') as f:
+                        f.write(json.dumps(results))
+                      
     
     with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'a') as f:
         f.write("\n]")    
