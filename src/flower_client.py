@@ -47,6 +47,11 @@ class FlowerClient(fl.client.NumPyClient):
                 unit_size = self.conf['unit_size']
             else:
             	raise ValueError('scale mode not recognized{self.conf["scale_mode"]}')
+        elif self.conf['ma_mode'] == 'rm-cid':
+            if type(self.conf['scale_mode'])==float and self.conf['scale_mode']<1.0:
+                unit_size = self.conf['unit_size'] * self.conf['scale_mode'] 
+            else:
+                unit_size = self.conf['unit_size'] - 1
         else:
             unit_size = self.conf['unit_size'] 
         self.conf['local_unit_size'] = unit_size
@@ -65,6 +70,9 @@ class FlowerClient(fl.client.NumPyClient):
         """set weights either as a simple update or model agnostic way"""
         if self.conf["ma_mode"] == "heterofl":
             cp_weights = ma_utils.crop_weights(weights, self.model.get_weights())
+            self.model.set_weights(cp_weights)
+        elif self.conf['ma_mode'] == 'rm-cid':
+            cp_weights = ma_utils.crop_weights(weights, self.model.get_weights(), self.cid)
             self.model.set_weights(cp_weights)
         else:
             self.model.set_weights(weights)

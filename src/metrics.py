@@ -31,7 +31,8 @@ def evaluate(conf, model, train_ds=None, val_ds=None, test_ds=None):
         'model_id' : conf['model_id'],
         'params' : model.count_params(),
         "model_mode": conf["model_mode"],
-        "scale_mode": conf["scale_mode"]
+        "scale_mode": conf["scale_mode"],
+        "ma_mode": conf["ma_mode"]
     }
     for k, v in mia_preds.items():
         results[k] = attacks.calculate_advantage(r['mia_labels'], v)

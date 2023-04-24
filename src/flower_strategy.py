@@ -22,6 +22,11 @@ import numpy as np
 
 from src import models, ma_utils    
 
+def get_example_model_shape(conf):
+    model = models.get_model(unit_size=conf['unit_size'], conf=conf)
+    shapes = [np.shape(l) for l in model.get_weights()]
+    return shapes
+
 class SaveAndLogStrategy(fl.server.strategy.FedAvg):
     """Adding saving and logging to the strategy pipeline"""
 
@@ -30,6 +35,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
         self.client_leaving_history = []
         self.aggregated_parameters = None
         self.best_loss = np.inf
+        self.global_model_shapes = get_example_model_shape(conf)
         super().__init__(*args, **kwargs)
 
     def aggregate_fit(
@@ -52,6 +58,11 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
         ]
         if self.conf['ma_mode'] == 'heterofl':
             parameters_aggregated = ndarrays_to_parameters(ma_utils.aggregate_hetero(weights_results))
+        elif self.conf['ma_mode'] == 'rm-cid':
+            cid_results = [
+                fit_res.metrics['client_id'] for _, fit_res in results
+            ]
+            parameters_aggregated = ndarrays_to_parameters(ma_utils.aggregate_rmcid(weights_results, cid_results, self.global_model_shapes))
         else:
             parameters_aggregated = ndarrays_to_parameters(aggregate(weights_results))
 
