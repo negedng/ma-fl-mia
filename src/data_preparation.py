@@ -43,12 +43,11 @@ def split_data(X, Y, num_clients, split=None, split_mode='dirichlet', *args, **k
             ValueError(f'Split mode not recognized {split_mode}')
     X_split = None
     Y_split = None
+    idx_split = None
     
     for i, cls in enumerate(classes):
-        X_cls = X[Y==cls]
-        Y_cls = Y[Y==cls]
-        
-        cls_num_example = len(X_cls)
+        idx_cls = np.where(Y==cls)[0]
+        cls_num_example = len(idx_cls)
         cls_split = np.rint(split[i]*cls_num_example)
         
         # if rounding error remove it from most populus one
@@ -57,19 +56,20 @@ def split_data(X, Y, num_clients, split=None, split_mode='dirichlet', *args, **k
             max_idx = np.where(cls_split == max_val)[0][0]  
             cls_split[max_idx] -= sum(cls_split)-cls_num_example
         cls_split = cls_split.astype(int)
-
-        X_cls_split = np.split(X_cls, np.cumsum(cls_split)[:-1])
-        Y_cls_split = np.split(Y_cls, np.cumsum(cls_split)[:-1]) # these are just [cls]*cls_split   
-
-        if X_split is None:
-            X_split = X_cls_split
-            Y_split = Y_cls_split
+        idx_cls_split = np.split(idx_cls, np.cumsum(cls_split)[:-1])   
+        if idx_split is None:
+            idx_split = idx_cls_split
+            
         else:
-            for i in range(len(X_cls_split)):
+            for i in range(len(idx_cls_split)):
 
-                X_split[i] = np.concatenate([X_split[i],X_cls_split[i]], axis=0)
-                Y_split[i] = np.concatenate([Y_split[i],Y_cls_split[i]], axis=0)
+                idx_split[i] = np.concatenate([idx_split[i],idx_cls_split[i]], axis=0)
     
+    for i in range(len(idx_split)):
+        idx_split[i] = np.sort(idx_split[i])
+        
+    X_split = np.array([X[idx] for idx in idx_split])
+    Y_split = np.array([Y[idx] for idx in idx_split])
     return X_split, Y_split
 
     
