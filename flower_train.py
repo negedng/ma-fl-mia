@@ -50,9 +50,13 @@ def train(conf, train_ds=None):
                                                    mode="clients", seed=conf['seed'], dirichlet_alpha=conf['dirichlet_alpha'])
 
     initial_model = models.get_model(training_phase=True, unit_size=conf['unit_size'], conf=conf)
+    if conf["continue_from"] is not None:
+        print(f'load weights from checkpoint {conf["continue_from"]}')
+        initial_model.load_weights(conf["continue_from"])
     initial_model.compile(optimizer=models.get_optimizer(),
                   loss=models.get_loss(),
                   metrics=["accuracy"])
+
     # Create FedAvg strategy
     strategy = SaveAndLogStrategy(
         conf=conf,
@@ -119,29 +123,32 @@ if __name__ == "__main__":
           0.047619047619047616]
     with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'w') as f:
         f.write("[\n")  
-    for mm in ["diao_CNN"]:
-        for i in range(1):
-            for alpha in [1000]:
-                for sm in ['1250']:
-                    conf["model_mode"] = mm
-                    conf["scale_mode"] = sm
-                    conf["dirichlet_alpha"] = alpha
-                    
-                    model, model_conf = train(conf, train_ds)
-                    
-                    print("Training completed, model evaluation")
-                    # Evaluate
-                    results = metrics.evaluate(model_conf, model, train_ds, val_ds, test_ds)
-                    print(results)
-      
-                    with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'a') as f:
-                        f.write("  "+json.dumps(results)+",\n")
-                    
-                    # Per client eval
-                    results = metrics.evaluate_per_client(model_conf, model, X_split, Y_split, train_ds, val_ds, test_ds)
-                    with open(os.path.join(model_conf['paths']['models'], model_conf['model_id'], "client_results.json"), 'w') as f:
-                        f.write(json.dumps(results))
-                      
+#    for mm in ["diao_CNN"]:
+#        for i in range(1):
+#            for alpha in [1000]:
+#                for sm in ['1250']:
+#                    conf["model_mode"] = mm
+#                    conf["scale_mode"] = sm
+#                    conf["dirichlet_alpha"] = alpha
+    print(conf)                
+    model, model_conf = train(conf, train_ds)
+    
+    print("Training completed, model evaluation")
+    # Evaluate
+    results = metrics.evaluate(model_conf, model, train_ds, val_ds, test_ds)
+    print(results)
+    with open(os.path.join(model_conf['paths']['models'], model_conf['model_id'], "tests.json"), 'w') as f:
+        f.write(json.dumps(results))
+
+    with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'a') as f:
+        f.write("  "+json.dumps(results)+",\n")
+    
+    # Per client eval
+    results = metrics.evaluate_per_client(model_conf, model, X_split, Y_split, train_ds, val_ds, test_ds)
+    with open(os.path.join(model_conf['paths']['models'], model_conf['model_id'], "client_results.json"), 'w') as f:
+        f.write(json.dumps(results))
+
+# endfor                      
     
     with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'a') as f:
         f.write("\n]")    

@@ -50,10 +50,19 @@ class FlowerClient(fl.client.NumPyClient):
         elif self.conf['ma_mode'] == 'rm-cid':
             if type(self.conf['scale_mode'])==float and self.conf['scale_mode']<1.0:
                 unit_size = int(self.conf['unit_size'] * self.conf['scale_mode'])
-            else:
+            elif self.conf['scale_mode']=='basic':
                 unit_size = self.conf['unit_size'] - 1
+            elif self.conf['scale_mode']=='long':
+                if int(self.cid) in [0,1,2,5,6,7]:
+                    unit_size = self.conf['unit_size']-1
+                else:
+                    unit_size = self.conf['unit_size']*0.75
+            else:
+                raise ValueError('scale mode not recognized{self.conf["scale_mode"]}')
+        elif self.conf['ma_mode']=='no':
+            unit_size = self.conf['unit_size']
         else:
-            unit_size = self.conf['unit_size'] 
+            raise ValueError('model agnostic mode not recognized{self.conf["ma_mode"]}') 
         self.conf['local_unit_size'] = unit_size
     
     def load_data(self, X, Y, X_test, Y_test):

@@ -1,12 +1,12 @@
 {
-    "num_clients" : 20,
+    "num_clients" : 10,
     "paths" : {
         "models" : "data/models/ma-fl-mia/federated/",
         "code" : "data/codes/ma-fl-mia/flower_train.py"
         },
     "seed" : 20,
     "epochs" : 1,
-    "rounds": 50,
+    "rounds": 200,
     "n_attacker_knowledge" : 100,
     "n_attack_sample" : 5000,
     "batch_size" : 128,
@@ -14,9 +14,10 @@
     "weight_clients": false,
     "split_mode": "binary",
     "dirichlet_alpha": 1.0,
-    "ma_mode": "heterofl",
+    "ma_mode": "rm-cid",
     "unit_size" : 64,
     "model_mode": "diao_CNN",
-    "scale_mode": "no",
-    "val_split": false
+    "scale_mode": "long",
+    "val_split": false,
+    "continue_from": null
 }

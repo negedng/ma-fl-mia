@@ -33,7 +33,10 @@ def split_data(X, Y, num_clients, split=None, split_mode='dirichlet', *args, **k
         if split_mode=='dirichlet':
             split = dirichlet_split(num_classes, num_clients, *args, **kwargs)
         elif split_mode=='binary':
-            split = [4/50]*10 + [1/50]*10
+            if num_clients == 20:
+                split = [4/50]*10 + [1/50]*10
+            elif num_clients == 10:
+                split = [9/50]*5 + [1/50]*5
             split =[split]*10
             split = np.array(split)
         else:
