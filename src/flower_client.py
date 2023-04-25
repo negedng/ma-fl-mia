@@ -48,7 +48,7 @@ class FlowerClient(fl.client.NumPyClient):
             else:
             	raise ValueError('scale mode not recognized{self.conf["scale_mode"]}')
         elif self.conf['ma_mode'] == 'rm-cid':
-            if type(self.conf['scale_mode'])==float and self.conf['scale_mode']<1.0:
+            if type(self.conf['scale_mode'])==float and self.conf['scale_mode']<=1.0:
                 unit_size = int(self.conf['unit_size'] * self.conf['scale_mode'])
             elif self.conf['scale_mode']=='basic':
                 unit_size = self.conf['unit_size'] - 1
