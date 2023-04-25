@@ -72,6 +72,53 @@ def split_data(X, Y, num_clients, split=None, split_mode='dirichlet', *args, **k
     Y_split = np.array([Y[idx] for idx in idx_split])
     return X_split, Y_split
 
+
+def get_mia_datasets_client_balanced(X_split, Y_split, X_test, Y_test, n_attacker_knowledge=100, n_attack_sample=5000, seed=None):
+    """Get attacker knowledge from train split-wise balanced"""
+    no_clients = len(Y_split)
+    
+    n_attacker_knowledge_cls = n_attacker_knowledge // no_clients
+    n_attack_sample_cls = n_attack_sample // no_clients
+    
+    for i in range(len(Y_split)):
+        p = np.random.RandomState(seed=seed).permutation(len(Y_split[i]))
+        idx_train_attacker = p[:n_attacker_knowledge_cls]
+        idx_test_train = p[-n_attack_sample_cls:]
+        if i==0:
+            x_train_attacker = X_split[i][idx_train_attacker]
+            y_train_attacker = Y_split[i][idx_train_attacker]
+            x_test_train = X_split[i][idx_test_train]
+            y_test_train = Y_split[i][idx_test_train]
+        else:
+            x_train_attacker = np.concatenate([x_train_attacker, X_split[i][idx_train_attacker]],axis=0)
+            y_train_attacker = np.concatenate([y_train_attacker, Y_split[i][idx_train_attacker]],axis=0)  
+            x_test_train = np.concatenate([x_test_train, X_split[i][idx_test_train]],axis=0)
+            y_test_train = np.concatenate([y_test_train, Y_split[i][idx_test_train]],axis=0)
+    p = np.random.RandomState(seed=seed).permutation(len(Y_test))
+    idx_test_attacker = p[:n_attacker_knowledge]
+    idx_test_test = p[-n_attack_sample_cls:]     
+    x_test_attacker = X_test[idx_test_attacker]
+    y_test_attacker = Y_test[idx_test_attacker]
+    x_test_test = X_test[idx_test_test]
+    y_test_test = Y_test[idx_test_test]
+    
+    x_mia_test = np.concatenate([x_test_train, x_test_test])
+    y_mia_test = np.concatenate([y_test_train, y_test_test])
+    mia_true = [1.0] * n_attack_sample + [0.0] * n_attack_sample
+    mia_true = np.array(mia_true)
+    
+    attacker_knowledge = {
+        "in_train_data" : (x_train_attacker, y_train_attacker),
+        "not_train_data" : (x_test_attacker, y_test_attacker),
+    }
+    
+    ret = {
+        "attacker_knowledge": attacker_knowledge,
+        "mia_data" : (x_mia_test, y_mia_test),
+        "mia_labels" : mia_true 
+    }
+
+    return ret    
     
 def get_mia_datasets(train_ds, test_ds, n_attacker_knowledge=100, n_attack_sample=5000, seed=None):
     """Get attacker training data knowledge 

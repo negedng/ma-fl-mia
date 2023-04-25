@@ -44,7 +44,7 @@ def evaluate_per_client(conf, model, X_split, Y_split, train_ds=None, val_ds=Non
     if train_ds is None:
         train_ds, val_ds, test_ds = tfds.load('cifar10', split=['train[5%:]','train[:5%]','test'], as_supervised=True)
     X_test, Y_test = utils.get_np_from_tfds(test_ds)            
-    r = data_preparation.get_mia_datasets(train_ds, test_ds,
+    r = data_preparation.get_mia_datasets_client_balanced(X_split, Y_split, X_test, Y_test,
                                           conf['n_attacker_knowledge'],
                                           conf['n_attack_sample'],
                                           conf['seed'])
