@@ -17,7 +17,7 @@
     "ma_mode": "rm-cid",
     "unit_size" : 64,
     "model_mode": "diao_CNN",
-    "scale_mode": "long",
+    "scale_mode": 0.35,
     "val_split": false,
     "continue_from": null
 }

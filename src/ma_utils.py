@@ -1,15 +1,42 @@
 import numpy as np
 import itertools
+from src import utils
 
-def cut_for_rand(from_shape, to_shape, rand):
-    remove_shape = from_shape - to_shape
 
-    r1 = np.random.RandomState(seed=rand).randint(from_shape)
-    last_idx = min(r1+remove_shape,from_shape)
-    first_idx = last_idx-remove_shape
-    remove_idx = range(first_idx,last_idx)
-    keep_idx = [x for x in range(from_shape) if x not in remove_idx]
+def cut_idx_rand(max_shape, this_shape, dim, rand):
+    from_len = max_shape[dim]
+    to_len = this_shape[dim]
+    if from_len==to_len:
+        return np.array(range(to_len))
+    r = np.random.RandomState(seed=rand*(dim+1)).permutation(from_len)
+    keep_idx = r[:to_len]
     return keep_idx
+
+
+def cut_idx_rand_secure_first(max_shape, this_shape, dim, rand):
+    """First tries to match each unit to one submatrix then random for the rest"""
+    from_len = max_shape[dim]
+    to_len = this_shape[dim]
+    if from_len==to_len:
+        return np.array(range(to_len))
+    
+    steps_per_dim = np.ceil(np.array(max_shape)/np.array(this_shape)).astype(int)
+    min_subs = np.prod(steps_per_dim)
+    cid = rand
+    if cid<min_subs:
+        cid_r = utils.generalized_positional_notation(cid,steps_per_dim)[dim]
+
+        start = (cid_r*to_len)%from_len
+        
+        p = list(range(from_len))
+        p = np.concatenate([p,p])
+        keep_idx = p[start:start+to_len]
+        return keep_idx
+
+    r = np.random.RandomState(seed=rand*(dim+1)).permutation(from_len)
+    keep_idx = r[:to_len]
+    return keep_idx
+
 
 
 def take(a, new_shape, rand=None):
@@ -23,7 +50,7 @@ def take(a, new_shape, rand=None):
             if rand is None:
                 take_index_list = range(d)
             else:
-                take_index_list = cut_for_rand(a_shape[i], d, rand=rand)
+                take_index_list = cut_idx_rand_secure_first(a_shape, new_shape, i, rand=rand)
             z = z.take(take_index_list, axis=i) 
     return z
 
@@ -73,6 +100,9 @@ def aggregate_hetero(results):
             ones_pad = np.pad(ones_of_shape, pad_shape, constant_values = 0.0)
             count_layer = np.add(count_layer, ones_pad)
             layer_agg = np.add(layer_agg, l_padded)
+        if np.any(count_layer==0.0):
+            print(count_layer)
+            raise ValueError("Diving with 0")
         layer_agg = layer_agg / count_layer
         return layer_agg
 
@@ -105,7 +135,7 @@ def aggregate_rmcid(results, cids, total_model_shapes):
         for l, num, cid in zip(layer_updates, num_examples_list, cids):
             local_ch = np.shape(l)
             idx = [
-                cut_for_rand(max_ch[i], local_ch[i], rand=cid) if local_ch[i]<max_ch[i] else list(range(local_ch[i])) for i in range(len(local_ch)) 
+                cut_idx_rand_secure_first(max_ch, local_ch, i, rand=cid) for i in range(len(local_ch)) 
             ]
             l_padded = expand(l, max_ch, idx)
             ones_pad = np.ones(np.shape(l))
@@ -114,7 +144,18 @@ def aggregate_rmcid(results, cids, total_model_shapes):
             count_layer = np.add(count_layer, ones_pad)
             layer_agg = np.add(layer_agg, l_padded)
         
-        #print(count_layer)
+        if np.any(count_layer==0.0):
+            print(count_layer)
+            print(ones_pad[0,0,:,0])
+            print(ones_pad[0,0,0,:])
+            print(count_layer[0,0,0,:])
+            
+            for l in layer_updates:
+                print(np.shape(l))
+            print(max_ch, local_ch)
+            print(idx)
+            print(cids)
+            raise ValueError("Diving with 0")
         layer_agg = layer_agg / count_layer
         return layer_agg
 

@@ -4,6 +4,17 @@ from tqdm import tqdm
 import json
 
 
+def generalized_positional_notation(N, l):
+    ret = [0] * len(l)
+    quo = N
+    for i in range(len(l)-1,0,-1):
+        rem = quo % l[i]
+        ret[i] = rem
+        quo = quo // l[i]
+    ret[0] = quo
+    return ret
+    
+
 def get_np_from_tfds(ds):
     X = []
     Y = []
