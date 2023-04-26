@@ -13,6 +13,9 @@ class Scaler(tf.keras.layers.Layer):
         else:
             return inputs
 
+custom_objects = {
+    "Scaler": Scaler
+}
 
 def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), training_phase=False, use_scaler=False, norm_mode="bn", default_hidden=[64, 128, 256, 512]):
     """Model following the diao et al paper.
@@ -113,6 +116,46 @@ def get_loss(*args, **kwargs):
     return tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, *args, **kwargs)
 
 
-custom_objects = {
-    "Scaler": Scaler
-}
+def calculate_unit_size(cid, conf, len_train_data):
+    if conf['ma_mode']=='heterofl':
+        if conf['scale_mode']=='standard':
+            if len_train_data > 2500:
+                unit_size = conf['unit_size']
+            elif len_train_data > 1250:
+                unit_size = conf['unit_size'] // 2
+            elif len_train_data >750:
+                unit_size = conf['unit_size'] // 4
+            else:
+                unit_size = conf['unit_size'] // 8
+        elif conf['scale_mode']=='basic':
+            if len_train_data > 2500:
+                unit_size = conf['unit_size']
+            else:
+                unit_size = conf['unit_size'] // 2
+        elif conf["scale_mode"]=="1250":
+            if len_train_data > 1250:
+                unit_size = conf['unit_size']
+            else:
+                unit_size = conf['unit_size'] // 2
+        elif conf["scale_mode"]=='no':
+            unit_size = conf['unit_size']
+        else:
+        	raise ValueError('scale mode not recognized{conf["scale_mode"]}')
+    elif conf['ma_mode'] == 'rm-cid':
+        if type(conf['scale_mode'])==float and conf['scale_mode']<=1.0:
+            unit_size = int(conf['unit_size'] * conf['scale_mode'])
+        elif conf['scale_mode']=='basic':
+            unit_size = conf['unit_size'] - 1
+        elif conf['scale_mode']=='long':
+            if int(cid) in [0,1,2,5,6,7]:
+                unit_size = conf['unit_size']-1
+            else:
+                unit_size = conf['unit_size']*0.75
+        else:
+            raise ValueError('scale mode not recognized{conf["scale_mode"]}')
+    elif conf['ma_mode']=='no':
+        unit_size = conf['unit_size']
+    else:
+        raise ValueError('model agnostic mode not recognized{conf["ma_mode"]}') 
+    return unit_size
+

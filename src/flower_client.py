@@ -5,8 +5,6 @@ import numpy as np
 
 from src import models, ma_utils
 
-
-
 class FlowerClient(fl.client.NumPyClient):
     """Client implementation using Flower federated learning framework"""
     
@@ -23,47 +21,7 @@ class FlowerClient(fl.client.NumPyClient):
         self.model = model
     
     def calculate_unit_size(self):
-        if self.conf['ma_mode']=='heterofl':
-            if self.conf['scale_mode']=='standard':
-                if self.len_train_data > 2500:
-                    unit_size = self.conf['unit_size']
-                elif self.len_train_data > 1250:
-                    unit_size = self.conf['unit_size'] // 2
-                elif self.len_train_data >750:
-                    unit_size = self.conf['unit_size'] // 4
-                else:
-                    unit_size = self.conf['unit_size'] // 8
-            elif self.conf['scale_mode']=='basic':
-                if self.len_train_data > 2500:
-                    unit_size = self.conf['unit_size']
-                else:
-                    unit_size = self.conf['unit_size'] // 2
-            elif self.conf["scale_mode"]=="1250":
-                if self.len_train_data > 1250:
-                    unit_size = self.conf['unit_size']
-                else:
-                    unit_size = self.conf['unit_size'] // 2
-            elif self.conf["scale_mode"]=='no':
-                unit_size = self.conf['unit_size']
-            else:
-            	raise ValueError('scale mode not recognized{self.conf["scale_mode"]}')
-        elif self.conf['ma_mode'] == 'rm-cid':
-            if type(self.conf['scale_mode'])==float and self.conf['scale_mode']<=1.0:
-                unit_size = int(self.conf['unit_size'] * self.conf['scale_mode'])
-            elif self.conf['scale_mode']=='basic':
-                unit_size = self.conf['unit_size'] - 1
-            elif self.conf['scale_mode']=='long':
-                if int(self.cid) in [0,1,2,5,6,7]:
-                    unit_size = self.conf['unit_size']-1
-                else:
-                    unit_size = self.conf['unit_size']*0.75
-            else:
-                raise ValueError('scale mode not recognized{self.conf["scale_mode"]}')
-        elif self.conf['ma_mode']=='no':
-            unit_size = self.conf['unit_size']
-        else:
-            raise ValueError('model agnostic mode not recognized{self.conf["ma_mode"]}') 
-        self.conf['local_unit_size'] = unit_size
+        self.conf['local_unit_size'] = models.calculate_unit_size(self.cid, self.conf, self.len_train_data)
     
     def load_data(self, X, Y, X_test, Y_test):
         self.X = X
