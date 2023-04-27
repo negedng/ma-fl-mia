@@ -7,10 +7,12 @@ from datetime import datetime
 import os
 import numpy as np
 import json
+import copy
 
 from src.flower_client import FlowerClient
 from src.flower_strategy import SaveAndLogStrategy
 from src import utils, models, data_preparation, attacks, metrics
+from exp import setups
 
 
 global conf 
@@ -85,11 +87,17 @@ def train(conf, train_ds=None):
                   metrics=["accuracy"])
     return model, conf
 
-
-
                                                   
         
 if __name__ == "__main__":
+    import argparse
+    # Instantiate the parser
+    parser = argparse.ArgumentParser(description='Select experiment from exp.setup, for single run change config.json')
+    parser.add_argument('--exp', type=str, help='See full list in exp/setup.py', default='default')
+    args = parser.parse_args()
+    conf_changes = setups.get_experiment(args.exp)
+    
+
     import tensorflow as tf 
     import tensorflow_datasets as tfds
     if conf['val_split']:
@@ -101,52 +109,31 @@ if __name__ == "__main__":
         X_val, Y_val = utils.get_np_from_tfds(test_ds)
     f_name = datetime.now().strftime("%Y%m%d-%H%M%S")
     
-    aa = [0.5,
-          0.3333333333333333,
-          0.25,
-          0.2,
-          0.16666666666666666,
-          0.14285714285714285,
-          0.125,
-          0.1111111111111111,
-          0.1,
-          0.09090909090909091,
-          0.08333333333333333,
-          0.07692307692307693,
-          0.07142857142857142,
-          0.06666666666666667,
-          0.0625,
-          0.058823529411764705,
-          0.05555555555555555,
-          0.05263157894736842,
-          0.05,
-          0.047619047619047616]
     with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'w') as f:
-        f.write("[\n")  
-#    for mm in ["diao_CNN"]:
-#        for i in range(1):
-#            for alpha in [1000]:
-#                for sm in ['1250']:
-#                    conf["model_mode"] = mm
-#                    conf["scale_mode"] = sm
-#                    conf["dirichlet_alpha"] = alpha
-    print(conf)                
-    model, model_conf = train(conf, train_ds)
-    
-    print("Training completed, model evaluation")
-    # Evaluate
-    results = metrics.evaluate(model_conf, model, train_ds, val_ds, test_ds)
-    print(results)
-    with open(os.path.join(model_conf['paths']['models'], model_conf['model_id'], "tests.json"), 'w') as f:
-        f.write(json.dumps(results))
+        f.write("[\n") 
+        
+    orig_conf = copy.deepcopy(conf)
+    for cc in conf_changes:
+        for k,v in cc.items():
+            conf = copy.deepcopy(orig_conf)
+            conf[k] = v
+        print(conf)                
+        model, model_conf = train(conf, train_ds)
+        
+        print("Training completed, model evaluation")
+        # Evaluate
+        results = metrics.evaluate(model_conf, model, train_ds, val_ds, test_ds)
+        print(results)
+        with open(os.path.join(model_conf['paths']['models'], model_conf['model_id'], "tests.json"), 'w') as f:
+            f.write(json.dumps(results))
 
-    with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'a') as f:
-        f.write("  "+json.dumps(results)+",\n")
-    
-    # Per client eval
-    results = metrics.evaluate_per_client(model_conf, model, X_split, Y_split, train_ds, val_ds, test_ds)
-    with open(os.path.join(model_conf['paths']['models'], model_conf['model_id'], "client_results.json"), 'w') as f:
-        f.write(json.dumps(results))
+        with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'a') as f:
+            f.write("  "+json.dumps(results)+",\n")
+        
+        # Per client eval
+        results = metrics.evaluate_per_client(model_conf, model, X_split, Y_split, train_ds, val_ds, test_ds)
+        with open(os.path.join(model_conf['paths']['models'], model_conf['model_id'], "client_results.json"), 'w') as f:
+            f.write(json.dumps(results))
 
 # endfor                      
     
