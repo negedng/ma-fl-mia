@@ -18,7 +18,9 @@ def exp_default():
 
 def exp_all_homo():
     conf_changes = []
-    for s in range(22,65,2):
+    l = list(range(22,65,2))
+    l = list(reversed(l))
+    for s in l:
         c = {"scale_mode" : s/64}
         conf_changes.append(c)
     return conf_changes
