@@ -6,7 +6,7 @@
         },
     "seed" : 20,
     "epochs" : 1,
-    "rounds": 200,
+    "rounds": 150,
     "n_attacker_knowledge" : 100,
     "n_attack_sample" : 5000,
     "batch_size" : 128,
