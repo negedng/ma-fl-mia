@@ -2,15 +2,19 @@ import numpy as np
 import itertools
 from src import utils
 
+def get_random_permutation(cid, total_clients, seed):
+    return  np.random.RandomState(seed=seed).permutation(total_clients)[cid]
 
 def cut_idx_rand(max_shape, this_shape, dim, rand):
     from_len = max_shape[dim]
     to_len = this_shape[dim]
     if from_len==to_len:
         return np.array(range(to_len))
-    r = np.random.RandomState(seed=rand*(dim+1)).permutation(from_len)
-    keep_idx = r[:to_len]
-    keep_idx = np.sort(keep_idx)
+    remove_len = from_len-to_len
+    r = np.random.RandomState(seed=rand*(dim+1)).randint(to_len)
+    remove_idx = range(r,r+remove_len)
+    keep_idx = [x for x in range(from_len) if x not in remove_idx]
+    keep_idx = np.array(keep_idx)
     return keep_idx
 
 
@@ -128,10 +132,10 @@ def aggregate_hetero(results):
     return agg_layers
 
 
-def aggregate_rmcid(results, cids, total_model_shapes):
+def aggregate_rmcid(results, cids, total_model_shapes, server_round, total_clients, permutate=True):
     """Expand client model weights missing 1 row&col and aggregate"""
     """Compute weighted average with different model sizes."""
-    def aggregate_layer(layer_updates, num_examples_list, cids, max_ch):
+    def aggregate_layer(layer_updates, num_examples_list, rands, max_ch):
         """Padding layers with 0 to max size, then average them"""
         # In tensorflow biases have their list items in the layer list
         # Get the layer's largest form
@@ -139,10 +143,10 @@ def aggregate_rmcid(results, cids, total_model_shapes):
         layers_mask = []
         layer_agg = np.zeros(max_ch)
         count_layer = np.zeros(max_ch) # to average by num of models that size
-        for l, num, cid in zip(layer_updates, num_examples_list, cids):
+        for l, num, rand in zip(layer_updates, num_examples_list, rands):
             local_ch = np.shape(l)
             idx = [
-                cut_idx_rand_secure_first(max_ch, local_ch, i, rand=cid) for i in range(len(local_ch)) 
+                cut_idx_rand_secure_first(max_ch, local_ch, i, rand=rand) for i in range(len(local_ch)) 
             ]
             l_padded = expand(l, max_ch, idx)
             ones_pad = np.ones(np.shape(l))
@@ -169,6 +173,9 @@ def aggregate_rmcid(results, cids, total_model_shapes):
     # Calculate the total number of examples used during training
     num_examples_list = [num_examples for _, num_examples in results]
     num_examples_total = sum(num_examples_list)
+    
+    
+    rands = [get_random_permutation(cid, total_clients, server_round) for cid in cids]
 
     # Create a list of weights, each multiplied by the related number of examples
     weighted_weights = [

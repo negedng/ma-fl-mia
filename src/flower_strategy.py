@@ -26,6 +26,21 @@ def get_example_model_shape(conf):
     model = models.get_model(unit_size=conf['unit_size'], conf=conf)
     shapes = [np.shape(l) for l in model.get_weights()]
     return shapes
+    
+    
+def get_on_fit_config_fn() -> Callable[[int], Dict[str, str]]:
+    """Return a function which returns training configurations."""
+
+    def fit_config(server_round: int) -> Dict[str, str]:
+        """Return a configuration with static batch size and (local) epochs."""
+        config = {
+            "round_seed": server_round 
+        }
+        return config
+
+    return fit_config
+    
+    
 
 class SaveAndLogStrategy(fl.server.strategy.FedAvg):
     """Adding saving and logging to the strategy pipeline"""
@@ -38,7 +53,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
         self.global_model_shapes = get_example_model_shape(conf)
         with open(os.path.join(self.conf['paths']['models'], self.conf['model_id'], "log_history.csv"), 'w') as f:
             f.write('epoch,val_loss\n')
-        super().__init__(*args, **kwargs)
+        super().__init__(on_fit_config_fn=get_on_fit_config_fn(), *args, **kwargs)
 
     def aggregate_fit(
         self,
@@ -64,7 +79,12 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             cid_results = [
                 fit_res.metrics['client_id'] for _, fit_res in results
             ]
-            parameters_aggregated = ndarrays_to_parameters(ma_utils.aggregate_rmcid(weights_results, cid_results, self.global_model_shapes))
+            parameters_aggregated = ndarrays_to_parameters(ma_utils.aggregate_rmcid(weights_results, 
+                                                                                    cid_results, 
+                                                                                    self.global_model_shapes, 
+                                                                                    server_round, 
+                                                                                    total_clients=self.conf['num_clients'], 
+                                                                                    permutate=self.conf['permutate_cuts']))
         else:
             parameters_aggregated = ndarrays_to_parameters(aggregate(weights_results))
 

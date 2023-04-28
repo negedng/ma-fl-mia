@@ -33,13 +33,17 @@ class FlowerClient(fl.client.NumPyClient):
     def get_parameters(self, config):
         return self.model.get_weights()
 
-    def set_parameters(self, weights):
+    def set_parameters(self, weights, config):
         """set weights either as a simple update or model agnostic way"""
         if self.conf["ma_mode"] == "heterofl":
             cp_weights = ma_utils.crop_weights(weights, self.model.get_weights())
             self.model.set_weights(cp_weights)
         elif self.conf['ma_mode'] == 'rm-cid':
-            cp_weights = ma_utils.crop_weights(weights, self.model.get_weights(), self.cid)
+            if 'round_seed' in config.keys() and self.conf['permutate_cuts']:
+                rand = ma_utils.get_random_permutation(self.cid, self.conf['num_clients'], config['round_seed'])
+            else:
+                rand = self.cid
+            cp_weights = ma_utils.crop_weights(weights, self.model.get_weights(), rand)
             self.model.set_weights(cp_weights)
         else:
             self.model.set_weights(weights)
@@ -47,7 +51,7 @@ class FlowerClient(fl.client.NumPyClient):
     def fit(self, weights, config):
         """Flower fit passing updated weights, data size and additional params in a dict"""
         try:
-            self.set_parameters(weights)
+            self.set_parameters(weights, config)
             history = self.model.fit(
                 self.X,
                 self.Y,
@@ -74,7 +78,7 @@ class FlowerClient(fl.client.NumPyClient):
 
     def evaluate(self, weights, config):
         try:
-            self.set_parameters(weights)
+            self.set_parameters(weights, config)
             loss, local_accuracy = self.model.evaluate(self.X_test, self.Y_test, verbose=0)
             g_model = models.get_model(unit_size=self.conf['unit_size'], conf=self.conf)
             g_model.set_weights(weights)
