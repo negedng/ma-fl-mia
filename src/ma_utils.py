@@ -10,6 +10,7 @@ def cut_idx_rand(max_shape, this_shape, dim, rand):
         return np.array(range(to_len))
     r = np.random.RandomState(seed=rand*(dim+1)).permutation(from_len)
     keep_idx = r[:to_len]
+    keep_idx = np.sort(keep_idx)
     return keep_idx
 
 
@@ -35,6 +36,7 @@ def cut_idx_rand_secure_first(max_shape, this_shape, dim, rand):
 
     r = np.random.RandomState(seed=rand*(dim+1)).permutation(from_len)
     keep_idx = r[:to_len]
+    keep_idx = np.sort(keep_idx)
     return keep_idx
 
 
