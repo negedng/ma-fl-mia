@@ -14,6 +14,10 @@ from src.flower_strategy import SaveAndLogStrategy
 from src import utils, models, data_preparation, attacks, metrics
 from exp import setups
 
+# DP wrappers
+from flwr.client import dpfedavg_numpy_client
+from flwr.server.strategy import dpfedavg_adaptive 
+
 
 global conf 
 global X_split
@@ -30,6 +34,8 @@ def client_fn(cid: str) -> fl.client.Client:
     client = FlowerClient(int(cid), conf)
     client.load_data(X_split[int(cid)], Y_split[int(cid)], X_val, Y_val)
     client.init_model()
+    if conf['dp']:
+        client = dpfedavg_numpy_client.DPFedAvgNumPyClient(client)
     return client
 
 
@@ -70,6 +76,14 @@ def train(conf, train_ds=None):
         # Wait until at least 75 clients are available
         # min_available_clients=1,
     )
+    
+    if conf['dp']:
+        strategy = dpfedavg_adaptive.DPFedAvgFixed(
+            strategy=strategy,
+            clip_norm=conf['dp_clipnorm'],
+            num_sampled_clients=conf['num_clients'],
+            noise_multiplier=conf['dp_noise']
+        )
 
     # Start simulation
     fl.simulation.start_simulation(
