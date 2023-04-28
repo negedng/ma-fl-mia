@@ -28,15 +28,20 @@ def cut_idx_rand_secure_first(max_shape, this_shape, dim, rand):
         cid_r = utils.generalized_positional_notation(cid,steps_per_dim)[dim]
 
         start = (cid_r*to_len)%from_len
+        # no overlap
+        end = min(start+to_len,from_len)
+        start = end-to_len
         
         p = list(range(from_len))
         p = np.concatenate([p,p])
         keep_idx = p[start:start+to_len]
         return keep_idx
 
-    r = np.random.RandomState(seed=rand*(dim+1)).permutation(from_len)
-    keep_idx = r[:to_len]
-    keep_idx = np.sort(keep_idx)
+    remove_len = from_len-to_len
+    r = np.random.RandomState(seed=rand*(dim+1)).randint(to_len)
+    remove_idx = range(r,r+remove_len)
+    keep_idx = [x for x in range(from_len) if x not in remove_idx]
+    keep_idx = np.array(keep_idx)
     return keep_idx
 
 
