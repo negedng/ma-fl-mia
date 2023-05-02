@@ -3,8 +3,9 @@
 #          Experiment setups
 #
 #########################################
-
-def get_experiment(exp_name='default'):
+import json
+    
+def get_experiment(exp_name='default', params=""):
     if exp_name == 'default':
         return exp_default()
     if exp_name == "unit_size":
@@ -13,10 +14,17 @@ def get_experiment(exp_name='default'):
         return exp_scale_us3()
     if exp_name == 'all_homo':
         return exp_all_homo()
+    if exp_name == 'config':
+        return exp_config(params)
     raise ValueError(f'not recognized exp name: {exp_name}')
 
 def exp_default():
     conf_changes = [{}]
+    return conf_changes
+
+
+def exp_config(params):
+    conf_changes = [dict(json.loads(params))]
     return conf_changes
 
 

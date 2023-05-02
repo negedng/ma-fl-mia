@@ -108,8 +108,9 @@ if __name__ == "__main__":
     # Instantiate the parser
     parser = argparse.ArgumentParser(description='Select experiment from exp.setup, for single run change config.json')
     parser.add_argument('--exp', type=str, help='See full list in exp/setup.py', default='default')
+    parser.add_argument('--config', type=str, help='JSON str config changes, enclosed in \' characters ', default='{}')
     args = parser.parse_args()
-    conf_changes = setups.get_experiment(args.exp)
+    conf_changes = setups.get_experiment(args.exp, args.config)
     
 
     import tensorflow as tf 
