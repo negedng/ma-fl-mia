@@ -126,10 +126,8 @@ if __name__ == "__main__":
     with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'w') as f:
         f.write("[\n") 
         
-    orig_conf = copy.deepcopy(conf)
     for cc in conf_changes:
         for k,v in cc.items():
-            conf = copy.deepcopy(orig_conf)
             conf[k] = v
         print(conf)                
         model, model_conf = train(conf, train_ds)
