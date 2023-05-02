@@ -12,6 +12,8 @@ def get_experiment(exp_name='default', params=""):
         return exp_unit_size2()
     if exp_name == "scale_us":
         return exp_scale_us3()
+    if exp_name == "minus_one":
+        return exp_unit_size_minus_one()
     if exp_name == 'all_homo':
         return exp_all_homo()
     if exp_name == 'config':
@@ -49,6 +51,20 @@ def exp_unit_size2():
         c['ma_mode'] = 'no'
         c['split_mode'] = 'homogen'
         c['scale_mode'] = 1.0
+        c['rounds'] = 70
+        conf_changes.append(c)
+    return conf_changes
+
+
+def exp_unit_size_minus_one():
+    conf_changes = []
+    l = list(range(4,24,4))
+    l = l + [24, 34, 44, 54, 64]
+    for s in l:
+        c = {"unit_size" : s}
+        c['ma_mode'] = 'rm-cid'
+        c['split_mode'] = 'homogen'
+        c['scale_mode'] = -1
         c['rounds'] = 70
         conf_changes.append(c)
     return conf_changes
