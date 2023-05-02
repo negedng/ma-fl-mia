@@ -5,6 +5,16 @@ from src import utils
 def get_random_permutation(cid, total_clients, seed):
     return  np.random.RandomState(seed=seed).permutation(total_clients)[cid]
 
+
+def cut_idx(max_shape, this_shape, dim, conf, rand):
+    if conf['cut_type']=='rand':
+        return cut_idx_rand(max_shape, this_shape, dim, rand)
+    if conf['cut_type']=='secure':
+        return cut_idx_rand_secure_first(max_shape, this_shape, dim, rand)
+    if conf['cut_type']=='diagonal':
+        return cut_idx_diagonal(max_shape, this_shape, dim, rand)
+    raise ValueError(f'Not recognized cut_type: {conf["cut_type"]}')
+
 def cut_idx_rand(max_shape, this_shape, dim, rand):
     from_len = max_shape[dim]
     to_len = this_shape[dim]
@@ -12,6 +22,19 @@ def cut_idx_rand(max_shape, this_shape, dim, rand):
         return np.array(range(to_len))
     remove_len = from_len-to_len
     r = np.random.RandomState(seed=rand*(dim+1)).randint(to_len)
+    remove_idx = range(r,r+remove_len)
+    keep_idx = [x for x in range(from_len) if x not in remove_idx]
+    keep_idx = np.array(keep_idx)
+    return keep_idx
+
+
+def cut_idx_diagonal(max_shape, this_shape, dim, rand):
+    from_len = max_shape[dim]
+    to_len = this_shape[dim]
+    if from_len==to_len:
+        return np.array(range(to_len))
+    remove_len = from_len-to_len
+    r = np.random.RandomState(seed=rand).randint(to_len)
     remove_idx = range(r,r+remove_len)
     keep_idx = [x for x in range(from_len) if x not in remove_idx]
     keep_idx = np.array(keep_idx)
@@ -50,7 +73,7 @@ def cut_idx_rand_secure_first(max_shape, this_shape, dim, rand):
 
 
 
-def take(a, new_shape, rand=None):
+def take(a, new_shape, conf={}, rand=None):
     """Takes the top-left submatrix with given shape, 
     if rand is not None, takes random submatrix defined by this int seed"""
     a_shape = np.shape(a)
@@ -61,7 +84,7 @@ def take(a, new_shape, rand=None):
             if rand is None:
                 take_index_list = range(d)
             else:
-                take_index_list = cut_idx_rand_secure_first(a_shape, new_shape, i, rand=rand)
+                take_index_list = cut_idx(a_shape, new_shape, i, conf=conf, rand=rand)
             z = z.take(take_index_list, axis=i) 
     return z
 
@@ -83,11 +106,11 @@ def expand(B, A_shape, idx):
     return C
 
 
-def crop_weights(w_from, w_to, rand=None):
+def crop_weights(w_from, w_to, conf={}, rand=None):
     """Crop top-left matrix of weights from first list of arrays to second's shape"""
     w_ret = []
     for l_from, l_to in zip(w_from, w_to):
-        l_to = take(l_from, np.shape(l_to), rand=rand)
+        l_to = take(l_from, np.shape(l_to), conf=conf, rand=rand)
         w_ret.append(l_to)
     return w_ret
 
@@ -132,10 +155,10 @@ def aggregate_hetero(results):
     return agg_layers
 
 
-def aggregate_rmcid(results, cids, total_model_shapes, server_round, total_clients, permutate=True):
+def aggregate_rmcid(results, cids, total_model_shapes, server_round, total_clients, permutate=True, conf={}):
     """Expand client model weights missing 1 row&col and aggregate"""
     """Compute weighted average with different model sizes."""
-    def aggregate_layer(layer_updates, num_examples_list, rands, max_ch):
+    def aggregate_layer(layer_updates, num_examples_list, rands, max_ch, conf={}):
         """Padding layers with 0 to max size, then average them"""
         # In tensorflow biases have their list items in the layer list
         # Get the layer's largest form
@@ -146,7 +169,7 @@ def aggregate_rmcid(results, cids, total_model_shapes, server_round, total_clien
         for l, num, rand in zip(layer_updates, num_examples_list, rands):
             local_ch = np.shape(l)
             idx = [
-                cut_idx_rand_secure_first(max_ch, local_ch, i, rand=rand) for i in range(len(local_ch)) 
+                cut_idx(max_ch, local_ch, i, conf=conf, rand=rand) for i in range(len(local_ch)) 
             ]
             l_padded = expand(l, max_ch, idx)
             ones_pad = np.ones(np.shape(l))
@@ -183,6 +206,6 @@ def aggregate_rmcid(results, cids, total_model_shapes, server_round, total_clien
     ]
     # Aggregate the layers
     agg_layers = [
-        aggregate_layer(l,num_examples_list, cids, total_model_shapes[i]) for i,l in enumerate(zip(*weighted_weights))
+        aggregate_layer(l,num_examples_list, cids, total_model_shapes[i], conf=conf) for i,l in enumerate(zip(*weighted_weights))
     ]
     return agg_layers

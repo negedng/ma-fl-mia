@@ -43,7 +43,7 @@ class FlowerClient(fl.client.NumPyClient):
                 rand = ma_utils.get_random_permutation(self.cid, self.conf['num_clients'], config['round_seed'])
             else:
                 rand = self.cid
-            cp_weights = ma_utils.crop_weights(weights, self.model.get_weights(), rand)
+            cp_weights = ma_utils.crop_weights(weights, self.model.get_weights(), conf=self.conf, rand=rand)
             self.model.set_weights(cp_weights)
         else:
             self.model.set_weights(weights)

@@ -84,7 +84,8 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
                                                                                     self.global_model_shapes, 
                                                                                     server_round, 
                                                                                     total_clients=self.conf['num_clients'], 
-                                                                                    permutate=self.conf['permutate_cuts']))
+                                                                                    permutate=self.conf['permutate_cuts'],
+                                                                                    conf=self.conf))
         else:
             parameters_aggregated = ndarrays_to_parameters(aggregate(weights_results))
 

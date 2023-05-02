@@ -23,5 +23,6 @@
     "dp":false,
     "dp_clipnorm":0.5,
     "dp_noise":0.1,
-    "permutate_cuts": true
+    "permutate_cuts": true,
+    "cut_type": "secure"
 }
