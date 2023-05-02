@@ -145,7 +145,7 @@ def calculate_unit_size(cid, conf, len_train_data):
         if type(conf['scale_mode'])==float and conf['scale_mode']<=1.0:
             unit_size = int(conf['unit_size'] * conf['scale_mode'])
         elif type(conf['scale_mode'])==int and conf['scale_mode']<0:
-            unit_size = conf['unit_size'] - conf['scale_mode']
+            unit_size = conf['unit_size'] + conf['scale_mode']
         elif conf['scale_mode']=='basic':
             unit_size = conf['unit_size'] - 1
         elif conf['scale_mode']=='long':
