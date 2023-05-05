@@ -17,13 +17,13 @@ custom_objects = {
     "Scaler": Scaler
 }
 
-def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), training_phase=False, use_scaler=False, norm_mode="bn", default_hidden=[64, 128, 256, 512]):
+def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), static_bn=False, use_scaler=False, norm_mode="bn", default_hidden=[64, 128, 256, 512]):
     """Model following the diao et al paper.
        Emmiting LN, GN and IN as it is not straightforward to cast to TF,
        and the paper shows superiority of the BN"""
-    def get_configurable_layers(use_scaler, norm_mode):
+    def get_configurable_layers(use_scaler, norm_mode, static_bn):
         if norm_mode == "bn":
-            norm = tf.keras.layers.BatchNormalization(momentum=0.0, trainable= not(training_phase))
+            norm = tf.keras.layers.BatchNormalization(momentum=0.0, trainable= not(static_bn))
         else:
             norm = tf.keras.layers.Lambda(lambda x: x)
         if use_scaler:
@@ -35,7 +35,7 @@ def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), training_phase
     hidden_sizes = [int(np.ceil(model_rate * x)) for x in default_hidden]
     scaler_rate = model_rate / 1
 
-    norm, scaler = get_configurable_layers(use_scaler, norm_mode)
+    norm, scaler = get_configurable_layers(use_scaler, norm_mode, static_bn)
 
     layers = []
     layers.append(tf.keras.layers.Conv2D(hidden_sizes[0], 3, padding='same', input_shape=input_shape))
@@ -44,7 +44,7 @@ def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), training_phase
     layers.append(tf.keras.layers.ReLU())
     layers.append(tf.keras.layers.MaxPool2D(2))
     for i in range(len(hidden_sizes) - 1):
-        norm, scaler = get_configurable_layers(use_scaler, norm_mode)
+        norm, scaler = get_configurable_layers(use_scaler, norm_mode, static_bn)
 
         layers.append(tf.keras.layers.Conv2D(hidden_sizes[i + 1], 3, padding='same'))
         layers.append(scaler)
@@ -57,32 +57,52 @@ def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), training_phase
                     tf.keras.layers.Dense(num_classes)])
     model = tf.keras.Sequential(layers)
     return model
-    
 
-def simple_CNN(unit_size, num_classes=10, input_shape=(32,32,3), training_phase=False):
+
+def alexnet(unit_size=64, num_classes=10, input_shape=(32,32,3), static_bn=False):
+    '''AlexNet for CIFAR10. FC layers are removed. Paddings are adjusted.
+    Without BN, the start learning rate should be 0.01
+    (c) YANG, Wei 
+    '''
+    model = tf.keras.models.Sequential([
+        tf.keras.layers.Conv2D(unit_size, kernel_size=11, strides=4, padding='same', activation='relu', input_shape=input_shape),
+        tf.keras.layers.MaxPool2D(pool_size=2, strides=2, padding='valid'),
+        tf.keras.layers.Conv2D(unit_size*3, kernel_size=5, padding='same', activation='relu'),
+        tf.keras.layers.MaxPool2D(pool_size=2, strides=2, padding='valid'),
+        tf.keras.layers.Conv2D(unit_size*6, kernel_size=3, padding='same', activation='relu'),
+        tf.keras.layers.Conv2D(unit_size*4, kernel_size=3, padding='same', activation='relu'),
+        tf.keras.layers.Conv2D(unit_size*4, kernel_size=3, padding='same', activation='relu'),
+        tf.keras.layers.MaxPool2D(pool_size=2, strides=2, padding='valid'),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(num_classes)
+    ])
+    return model
+
+
+def simple_CNN(unit_size, num_classes=10, input_shape=(32,32,3), static_bn=False):
     """Define the CNN model"""
     model = tf.keras.Sequential([
         tf.keras.layers.Conv2D(unit_size//2, (3,3), padding='same', activation='relu', input_shape=input_shape),
-        tf.keras.layers.BatchNormalization(trainable= not(training_phase)),
+        tf.keras.layers.BatchNormalization(trainable= not(static_bn)),
         tf.keras.layers.Conv2D(unit_size//2, (3,3), padding='same', activation='relu'),
-        tf.keras.layers.BatchNormalization(trainable= not(training_phase)),
+        tf.keras.layers.BatchNormalization(trainable= not(static_bn)),
         tf.keras.layers.MaxPooling2D(pool_size=(2,2)),
 
         tf.keras.layers.Conv2D(unit_size, (3,3), padding='same', activation='relu'),
-        tf.keras.layers.BatchNormalization(trainable= not(training_phase)),
+        tf.keras.layers.BatchNormalization(trainable= not(static_bn)),
         tf.keras.layers.Conv2D(unit_size, (3,3), padding='same', activation='relu'),
-        tf.keras.layers.BatchNormalization(trainable= not(training_phase)),
+        tf.keras.layers.BatchNormalization(trainable= not(static_bn)),
         tf.keras.layers.MaxPooling2D(pool_size=(2,2)),
 
         tf.keras.layers.Conv2D(unit_size*2, (3,3), padding='same', activation='relu'),
-        tf.keras.layers.BatchNormalization(trainable= not(training_phase)),
+        tf.keras.layers.BatchNormalization(trainable= not(static_bn)),
         tf.keras.layers.Conv2D(unit_size*2, (3,3), padding='same', activation='relu'),
-        tf.keras.layers.BatchNormalization(trainable= not(training_phase)),
+        tf.keras.layers.BatchNormalization(trainable= not(static_bn)),
         tf.keras.layers.MaxPooling2D(pool_size=(2,2)),
 
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(unit_size*2, activation='relu'),
-        tf.keras.layers.BatchNormalization(trainable= not(training_phase)),
+        tf.keras.layers.BatchNormalization(trainable= not(static_bn)),
         tf.keras.layers.Dense(num_classes)
     ])
     return model
@@ -105,6 +125,9 @@ def get_model(unit_size, model_mode=None, conf={}, *args, **kwargs):
                           default_unit_size*8]
         model_rate = float(local_unit_size)/float(default_unit_size)
         return diao_CNN(model_rate, default_hidden=default_hidden, use_scaler=True, *args, **kwargs)
+    elif model_mode=="alexnet":
+        input_shape=(227,227,3)
+        return alexnet(unit_size, input_shape=input_shape, *args, **kwargs)
     raise ValueError(f'Unknown model type{mode}')
     
 
