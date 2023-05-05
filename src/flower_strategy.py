@@ -146,7 +146,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             # for client analysis
             save_path = os.path.join(self.conf['paths']['models'],
                                      self.conf['model_id'],
-                                     'saved_model_{str(rnd)}')
+                                     f'saved_model_{str(rnd)}')
             log(INFO, "Saving model to %s", save_path)
             aggregated_weights = fl.common.parameters_to_ndarrays(
                 self.aggregated_parameters)
