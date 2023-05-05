@@ -90,7 +90,7 @@ def exp_unit_size_minus_one2():
         c['ma_mode'] = 'rm-cid'
         c['split_mode'] = 'homogen'
         c['scale_mode'] = -1
-        c['rounds'] = 70
+        c['rounds'] = 200
         c['cut_type'] = "diagonal"
         conf_changes.append(c)
     return conf_changes
