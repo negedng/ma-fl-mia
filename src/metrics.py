@@ -8,13 +8,16 @@ from src import utils, models, data_preparation, attacks
 def evaluate(conf, model, train_ds=None, val_ds=None, test_ds=None):
     if train_ds is None:
         train_ds, val_ds, test_ds = tfds.load('cifar10', split=['train[5%:]','train[:5%]','test'], as_supervised=True)
-        
+    
+    train_ds = train_ds.map(lambda x,y: data_preparation.preprocess_ds(x,y,conf)) 
+    test_ds = test_ds.map(lambda x,y: data_preparation.preprocess_ds(x,y,conf))    
     r = data_preparation.get_mia_datasets(train_ds, test_ds,
                                           conf['n_attacker_knowledge'],
                                           conf['n_attack_sample'],
                                           conf['seed'])
     train_performance = model.evaluate(train_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE)) 
     if val_ds is not None:
+        val_ds = val_ds.map(lambda x,y: data_preparation.preprocess_ds(x,y,conf)) 
         val_performance = model.evaluate(val_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE)) 
     else:
         val_performance = [None] * len(train_performance)                                     
@@ -43,6 +46,7 @@ def evaluate_per_client(conf, model, X_split, Y_split, train_ds=None, val_ds=Non
 
     if train_ds is None:
         train_ds, val_ds, test_ds = tfds.load('cifar10', split=['train[5%:]','train[:5%]','test'], as_supervised=True)
+    test_ds = test_ds.map(lambda x,y: data_preparation.preprocess_ds(x,y,conf))  
     X_test, Y_test = utils.get_np_from_tfds(test_ds)            
     r = data_preparation.get_mia_datasets_client_balanced(X_split, Y_split, X_test, Y_test,
                                           conf['n_attacker_knowledge'],
@@ -51,8 +55,13 @@ def evaluate_per_client(conf, model, X_split, Y_split, train_ds=None, val_ds=Non
     results = []
     for X_client, Y_client in tqdm(zip(X_split, Y_split), total=len(X_split)):
         c_res = {}
-        train_performance = model.evaluate(X_client, Y_client, verbose=0)
+        train_ds = tf.data.Dataset.from_tensor_slices((X_client,Y_client))
+        train_ds = train_ds.map(lambda x,y: data_preparation.preprocess_ds(x,y,conf))
+        train_ds = train_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE)
+        
+        train_performance = model.evaluate(train_ds, verbose=0)
         c_res['train_acc'] = train_performance[1]
+        
         len_data = min(len(X_client), len(X_test))
         c_res['data_size'] = len(X_client)
         X_ctest = np.concatenate((X_client[:len_data], X_test[:len_data]))

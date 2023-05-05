@@ -13,11 +13,7 @@ def test(model_path):
     config_path = os.path.join(model_path, 'config.json')
     conf = utils.load_config(env_path=None, config_path=config_path)
     print(conf)
-    if conf['val_split']:
-        train_ds, val_ds, test_ds = tfds.load('cifar10', split=['train[5%:]','train[:5%]','test'], as_supervised=True)
-    else:
-        train_ds, test_ds = tfds.load('cifar10', split=['train','test'], as_supervised=True)
-        val_ds = None
+    train_ds, val_ds, test_ds = data_preparation.load_and_preprocess(conf=conf)
     X_train, Y_train = utils.get_np_from_tfds(train_ds)
     conf['len_total_data'] = len(X_train)        
     if 'split_mode' not in conf.keys():
@@ -59,11 +55,7 @@ def test_all(model_path):
     config_path = os.path.join(model_path, 'config.json')
     conf = utils.load_config(env_path=None, config_path=config_path)
     print(conf)
-    if conf['val_split']:
-        train_ds, val_ds, test_ds = tfds.load('cifar10', split=['train[5%:]','train[:5%]','test'], as_supervised=True)
-    else:
-        train_ds, test_ds = tfds.load('cifar10', split=['train','test'], as_supervised=True)
-        val_ds = None
+    train_ds, val_ds, test_ds = data_preparation.load_and_preprocess(dataset_mode="cifar10", conf=conf)
     X_train, Y_train = utils.get_np_from_tfds(train_ds)
     conf['len_total_data'] = len(X_train)        
     if 'split_mode' not in conf.keys():
@@ -76,6 +68,8 @@ def test_all(model_path):
     subfolders = [ f.path for f in os.scandir(model_path) if f.is_dir() ]
     res = {}
     for weights_path in subfolders:
+        if 'saved_model' not in weights_path:
+            continue
         idx = os.path.basename(weights_path)     
         res[idx] = {} 
         model = models.get_model(unit_size=conf['unit_size'], conf=conf)

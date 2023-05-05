@@ -34,7 +34,8 @@ def get_on_fit_config_fn() -> Callable[[int], Dict[str, str]]:
     def fit_config(server_round: int) -> Dict[str, str]:
         """Return a configuration with static batch size and (local) epochs."""
         config = {
-            "round_seed": server_round 
+            "round_seed": server_round,
+            "round": server_round
         }
         return config
 
@@ -141,6 +142,19 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
                           loss=models.get_loss())
             model.set_weights(aggregated_weights)
             model.save(save_path)
+        if rnd <self.conf['rounds'] and rnd>=(self.conf['rounds']-self.conf['save_last_clients']):
+            # for client analysis
+            save_path = os.path.join(self.conf['paths']['models'],
+                                     self.conf['model_id'],
+                                     'saved_model_{str(rnd)}')
+            log(INFO, "Saving model to %s", save_path)
+            aggregated_weights = fl.common.parameters_to_ndarrays(
+                self.aggregated_parameters)
+            model = models.get_model(unit_size=self.conf['unit_size'], conf=self.conf)
+            model.compile(optimizer=models.get_optimizer(),
+                          loss=models.get_loss())
+            model.set_weights(aggregated_weights)
+            model.save(save_path)            
         if rnd == self.conf['rounds']:
             # end of training calls
             save_path = os.path.join(self.conf['paths']['models'],
