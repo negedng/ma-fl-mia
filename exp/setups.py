@@ -83,7 +83,7 @@ def exp_unit_size_minus_one():
 
 def exp_unit_size_minus_one2():
     conf_changes = []
-    l = list(range(4,24,4))
+    l = list(range(8,24,4))
     l = l + [24, 34, 44, 54, 64]
     for s in l:
         c = {"unit_size" : s}
