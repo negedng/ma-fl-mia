@@ -44,6 +44,10 @@ def train(conf, train_ds=None):
     global Y_split
     conf['model_id'] = datetime.now().strftime("%Y%m%d-%H%M%S")
     os.makedirs(os.path.join(conf['paths']['models'], conf['model_id']), mode=0o777)
+    if conf['save_last_clients']>0:
+        os.makedirs(os.path.join(conf['paths']['models'], conf['model_id'], "clients"))
+        for i in range(conf["num_clients"]):
+            os.makedirs(os.path.join(conf['paths']['models'], conf['model_id'], "clients",str(i)))
     shutil.copy(conf['paths']['code'],
                 os.path.join(conf['paths']['models'], conf['model_id'], "train.py"))
     with open(os.path.join(conf['paths']['models'], conf['model_id'], "config.json"), "w") as f:
@@ -57,7 +61,7 @@ def train(conf, train_ds=None):
     X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf['num_clients'], split_mode=conf['split_mode'],
                                                    mode="clients", seed=conf['seed'], dirichlet_alpha=conf['dirichlet_alpha'])
 
-    initial_model = models.get_model(training_phase=True, unit_size=conf['unit_size'], conf=conf)
+    initial_model = models.get_model(static_bn=True, unit_size=conf['unit_size'], conf=conf)
     if conf["continue_from"] is not None:
         print(f'load weights from checkpoint {conf["continue_from"]}')
         initial_model.load_weights(conf["continue_from"])
@@ -78,12 +82,21 @@ def train(conf, train_ds=None):
     )
     
     if conf['dp']:
-        strategy = dpfedavg_adaptive.DPFedAvgFixed(
-            strategy=strategy,
-            clip_norm=conf['dp_clipnorm'],
-            num_sampled_clients=conf['num_clients'],
-            noise_multiplier=conf['dp_noise']
-        )
+        if conf['dp_clipnorm'] is None:
+            # Expects min-max normalized input
+            strategy = dpfedavg_adaptive.DPFedAvgAdaptive(
+                strategy=strategy,
+                #clip_norm=conf['dp_clipnorm'],
+                num_sampled_clients=conf['num_clients'],
+                noise_multiplier=conf['dp_noise']
+            )
+        else:
+            strategy = dpfedavg_adaptive.DPFedAvgFixed(
+                strategy=strategy,
+                clip_norm=conf['dp_clipnorm'],
+                num_sampled_clients=conf['num_clients'],
+                noise_multiplier=conf['dp_noise']
+            )        
 
     # Start simulation
     fl.simulation.start_simulation(
@@ -111,17 +124,14 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str, help='JSON str config changes, enclosed in \' characters ', default='{}')
     args = parser.parse_args()
     conf_changes = setups.get_experiment(args.exp, args.config)
-    
+    for k,v in conf_changes[0].items():
+        conf[k]=v
 
     import tensorflow as tf 
     import tensorflow_datasets as tfds
-    if conf['val_split']:
-        train_ds, val_ds, test_ds = tfds.load('cifar10', split=['train[5%:]','train[:5%]','test'], as_supervised=True)
-        X_val, Y_val = utils.get_np_from_tfds(val_ds)        
-    else:
-        val_ds = None
-        train_ds, test_ds = tfds.load('cifar10', split=['train','test'], as_supervised=True)
-        X_val, Y_val = utils.get_np_from_tfds(test_ds)
+    train_ds, val_ds, test_ds = data_preparation.load_and_preprocess(conf=conf)
+    X_val, Y_val = utils.get_np_from_tfds(val_ds)
+    
     f_name = datetime.now().strftime("%Y%m%d-%H%M%S")
     
     with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'w') as f:

@@ -21,8 +21,11 @@
     "val_split": false,
     "continue_from": null,
     "dp":false,
-    "dp_clipnorm":0.5,
+    "dp_clipnorm":null,
     "dp_noise":0.1,
     "permutate_cuts": true,
-    "cut_type": "secure"
+    "cut_type": "secure",
+    "data_normalize": true,
+    "data_centralize": false,
+    "save_last_clients": 5
 }

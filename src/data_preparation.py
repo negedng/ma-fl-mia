@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow_datasets as tfds
+import tensorflow as tf
 import os
 
 from src.utils import get_np_from_tfds
@@ -156,4 +157,41 @@ def get_mia_datasets(train_ds, test_ds, n_attacker_knowledge=100, n_attack_sampl
     }
 
     return ret
+
+
+def preprocess(image, conf):
+    if ("model_mode" in conf.keys()) and (conf["model_mode"]=="alexnet"):
+        input_shape=(227,227,3)
+    else:
+        input_shape=(32,32,3)
+    if image.shape!=input_shape:
+        image = tf.image.resize(image, input_shape[:2])
+    if conf['data_normalize']:
+        # Convert to float32 and scale pixel values to [0, 1]
+        image = tf.cast(image, tf.float32) / 255.0
+        # Subtract mean RGB values
+    if conf['data_centralize']:
+        mean_rgb = tf.constant([0.485, 0.456, 0.406])
+        std_rgb = tf.constant([0.229, 0.224, 0.225])
+        image = (image - mean_rgb) / std_rgb
+    return image
+
+
+def preprocess_ds(image, label, conf):
+    image = preprocess(image, conf)
+    return image, label
+
+
+def load_and_preprocess(dataset_mode="cifar10", input_shape=(32,32,3), val_split=True, norm=False, conf={}):
+        
+    if 'val_split' in conf.keys():
+        val_split = conf['val_split']
+
+    if dataset_mode == "cifar10":
+        if val_split:
+            train_ds, val_ds, test_ds = tfds.load('cifar10', split=['train[5%:]','train[:5%]','test'], as_supervised=True)
+        else:
+            train_ds, val_ds, test_ds = tfds.load('cifar10', split=['train','test','test'], as_supervised=True)
+    
+    return train_ds, val_ds, test_ds
 
