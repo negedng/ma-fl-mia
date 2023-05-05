@@ -56,7 +56,7 @@ class FlowerClient(fl.client.NumPyClient):
             self.set_parameters(weights, config)
             
             train_ds = self.train_ds.map(lambda x,y: data_preparation.preprocess_ds(x,y,self.conf))
-            train_ds = train_ds.batch(self.conf['batch_size']).prefetch(tf.data.AUTOTUNE)
+            train_ds = train_ds.shuffle(5000).batch(self.conf['batch_size']).prefetch(tf.data.AUTOTUNE)
             
             if self.conf['save_last_clients']>0 and config['round']>self.conf['rounds']-self.conf['save_last_clients']:
                 # save client models in last rounds
