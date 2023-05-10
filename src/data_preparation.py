@@ -171,8 +171,8 @@ def preprocess(image, conf):
         image = tf.cast(image, tf.float32) / 255.0
         # Subtract mean RGB values
     if conf['data_centralize']:
-        mean_rgb = tf.constant([0.485, 0.456, 0.406])
-        std_rgb = tf.constant([0.229, 0.224, 0.225])
+        mean_rgb = tf.constant([0.491, 0.482, 0.447])
+        std_rgb = tf.constant([0.247, 0.243, 0.261])
         image = (image - mean_rgb) / std_rgb
     return image
 
