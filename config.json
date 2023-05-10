@@ -27,5 +27,6 @@
     "cut_type": "secure",
     "data_normalize": true,
     "data_centralize": false,
-    "save_last_clients": 5
+    "save_last_clients": 5,
+    "aug_crop": 0
 }
