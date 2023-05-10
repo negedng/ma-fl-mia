@@ -13,6 +13,8 @@ def cut_idx(max_shape, this_shape, dim, conf, rand):
         return cut_idx_rand_secure_first(max_shape, this_shape, dim, rand)
     if conf['cut_type']=='diagonal':
         return cut_idx_diagonal(max_shape, this_shape, dim, rand)
+    if conf['cut_type']=='simple':
+        return cut_idx_simple(max_shape, this_shape, dim, rand)
     raise ValueError(f'Not recognized cut_type: {conf["cut_type"]}')
 
 def cut_idx_rand(max_shape, this_shape, dim, rand):
@@ -71,7 +73,29 @@ def cut_idx_rand_secure_first(max_shape, this_shape, dim, rand):
     keep_idx = np.array(keep_idx)
     return keep_idx
 
+def cut_idx_simple(max_shape, this_shape, dim, rand):
+    """for 1/2 size, 4 matrixes, selecting one"""
+    from_len = max_shape[dim]
+    to_len = this_shape[dim]
+    if from_len==to_len:
+        return np.array(range(to_len))
+    
+    steps_per_dim = np.ceil(np.array(max_shape)/np.array(this_shape)).astype(int)
+    min_subs = np.prod(steps_per_dim)
+    cid = rand
+    cid = cid % min_subs
+    if cid<min_subs:
+        cid_r = utils.generalized_positional_notation(cid,steps_per_dim)[dim]
 
+        start = (cid_r*to_len)%from_len
+        # no overlap
+        end = min(start+to_len,from_len)
+        start = end-to_len
+        
+        p = list(range(from_len))
+        p = np.concatenate([p,p])
+        keep_idx = p[start:start+to_len]
+        return keep_idx
 
 def take(a, new_shape, conf={}, rand=None):
     """Takes the top-left submatrix with given shape, 
