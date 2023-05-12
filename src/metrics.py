@@ -85,8 +85,8 @@ def attack_on_clients(conf, X_split=None, Y_split=None, train_ds=None, val_ds=No
             adv_list.append(k)
     for adv in adv_list:
         all_adv = [a['test_acc'] for a in res]
-        avgs["avg"+adv] = np.mean(all_adv)
-        avgs["std"+adv] = np.std(all_adv)
+        avgs["avg_"+adv] = np.mean(all_adv)
+        avgs["std_"+adv] = np.std(all_adv)
         
     return {"client_results": res, "average":avgs}
                        
