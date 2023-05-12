@@ -42,13 +42,13 @@ def test(model_path):
         with open(os.path.join(model_path, "tests.json"), 'w') as f:
             f.write(json.dumps(results))
     
-    # Per client eval
+    # Per client attack
     if not os.path.exists(os.path.join(model_path, "client_results.json")):
-        results = metrics.evaluate_per_client(conf, model, X_split, Y_split, train_ds, val_ds, test_ds)
+        results = metrics.attack_on_client(conf, X_split, Y_split, train_ds, val_ds, test_ds)
         print(results)
         with open(os.path.join(model_path, "client_results.json"), 'w') as f:
             f.write(json.dumps(results))    
-    
+
 
 def test_all(model_path):
     

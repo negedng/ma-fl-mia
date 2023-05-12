@@ -109,7 +109,7 @@ def train(conf, train_ds=None):
     )
     model = models.get_model(unit_size=conf['unit_size'], conf=conf)
     model.load_weights(os.path.join(conf['paths']['models'], conf['model_id'], "saved_model"))
-    model.compile(optimizer=models.get_optimizer(),
+    model.compile(optimizer=models.get_optimizer(learning_rate=conf['learning_rate']),
                   loss=models.get_loss(),
                   metrics=["accuracy"])
     return model, conf
@@ -146,6 +146,14 @@ if __name__ == "__main__":
         print("Training completed, model evaluation")
         # Evaluate
         results = metrics.evaluate(model_conf, model, train_ds, val_ds, test_ds)
+        
+        # Per client eval
+        res = metrics.attack_on_clients(model_conf, X_split, Y_split, train_ds, val_ds, test_ds)
+        with open(os.path.join(model_conf['paths']['models'], model_conf['model_id'], "client_results.json"), 'w') as f:
+            f.write(json.dumps(res))
+        
+        results['client_attacks'] = res['average']
+        
         print(results)
         with open(os.path.join(model_conf['paths']['models'], model_conf['model_id'], "tests.json"), 'w') as f:
             f.write(json.dumps(results))
@@ -153,10 +161,6 @@ if __name__ == "__main__":
         with open(os.path.join(os.path.dirname(conf['paths']['code']),f'dump/{f_name}.json'), 'a') as f:
             f.write("  "+json.dumps(results)+",\n")
         
-        # Per client eval
-        results = metrics.evaluate_per_client(model_conf, model, X_split, Y_split, train_ds, val_ds, test_ds)
-        with open(os.path.join(model_conf['paths']['models'], model_conf['model_id'], "client_results.json"), 'w') as f:
-            f.write(json.dumps(results))
 
 # endfor                      
     
