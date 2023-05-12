@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 import os
 
-from src import models, ma_utils, data_preparation
+from src import models, ma_utils, data_preparation, augmentation
 
 class FlowerClient(fl.client.NumPyClient):
     """Client implementation using Flower federated learning framework"""
@@ -56,6 +56,8 @@ class FlowerClient(fl.client.NumPyClient):
             self.set_parameters(weights, config)
             
             train_ds = self.train_ds.map(lambda x,y: data_preparation.preprocess_ds(x,y,self.conf))
+            if self.conf["aug"]:
+                train_ds = train_ds.map(lambda x,y: augmentation.aug_ds(x,y,self.conf))
             train_ds = train_ds.shuffle(5000).batch(self.conf['batch_size']).prefetch(tf.data.AUTOTUNE)
             
             if self.conf['save_last_clients']>0 and config['round']>self.conf['rounds']-self.conf['save_last_clients']:

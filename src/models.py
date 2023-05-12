@@ -24,6 +24,8 @@ def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), static_bn=Fals
     def get_configurable_layers(use_scaler, norm_mode, static_bn):
         if norm_mode == "bn":
             norm = tf.keras.layers.BatchNormalization(momentum=0.0, trainable= not(static_bn))
+        elif norm_mode == "ln":
+            norm = tf.keras.layers.LayerNormalization(axis=[1, 2, 3])
         else:
             norm = tf.keras.layers.Lambda(lambda x: x)
         if use_scaler:
@@ -33,7 +35,7 @@ def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), static_bn=Fals
         return norm, scaler
 
     hidden_sizes = [int(np.ceil(model_rate * x)) for x in default_hidden]
-    scaler_rate = model_rate / 1
+    scaler_rate = model_rate
 
     norm, scaler = get_configurable_layers(use_scaler, norm_mode, static_bn)
 
@@ -113,6 +115,10 @@ def get_model(unit_size, model_mode=None, conf={}, *args, **kwargs):
     if model_mode=="simple_CNN":
         return simple_CNN(unit_size, *args, **kwargs)
     elif model_mode=="diao_CNN":
+        if "norm_mode" not in conf.keys():
+            norm_mode = "bn"
+        else:
+            norm_mode = conf['norm_mode']
         if "local_unit_size" not in conf.keys():
             local_unit_size = unit_size
             default_unit_size = unit_size
@@ -124,7 +130,7 @@ def get_model(unit_size, model_mode=None, conf={}, *args, **kwargs):
                           default_unit_size*4,
                           default_unit_size*8]
         model_rate = float(local_unit_size)/float(default_unit_size)
-        return diao_CNN(model_rate, default_hidden=default_hidden, use_scaler=True, *args, **kwargs)
+        return diao_CNN(model_rate, default_hidden=default_hidden, use_scaler=True, norm_mode=norm_mode, *args, **kwargs)
     elif model_mode=="alexnet":
         input_shape=(227,227,3)
         return alexnet(unit_size, input_shape=input_shape, *args, **kwargs)

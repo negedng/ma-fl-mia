@@ -17,16 +17,18 @@
     "ma_mode": "rm-cid",
     "unit_size" : 64,
     "model_mode": "diao_CNN",
-    "scale_mode": 0.8,
+    "scale_mode": 0.5,
     "val_split": false,
     "continue_from": null,
     "dp":false,
     "dp_clipnorm":null,
     "dp_noise":0.1,
     "permutate_cuts": true,
-    "cut_type": "secure",
+    "cut_type": "simple",
     "data_normalize": true,
     "data_centralize": false,
     "save_last_clients": 5,
-    "aug_crop": 0
+    "aug": false,
+    "aug_crop": 0,
+    "norm_mode": "bn"
 }
