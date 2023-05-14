@@ -67,14 +67,14 @@ def train(conf, train_ds=None):
         initial_model.load_weights(conf["continue_from"])
     initial_model.compile(optimizer=models.get_optimizer(),
                   loss=models.get_loss(),
-                  metrics=["accuracy"])
-
+                  metrics=["sparse_categorical_accuracy"])
+    print(initial_model.summary())
     # Create FedAvg strategy
     strategy = SaveAndLogStrategy(
         conf=conf,
         initial_parameters = ndarrays_to_parameters(initial_model.get_weights()), # avoid smaller models as init
         fraction_fit=1.0,  # Sample 10% of available clients for training
-        fraction_evaluate=0.05,  # Sample 5% of available clients for evaluation
+        fraction_evaluate=0.000001,  # Sample 5% of available clients for evaluation
         min_fit_clients=1,  # Never sample less than 10 clients for training
         min_evaluate_clients=1,  # Never sample less than 5 clients for evaluation
         # Wait until at least 75 clients are available
@@ -111,7 +111,7 @@ def train(conf, train_ds=None):
     model.load_weights(os.path.join(conf['paths']['models'], conf['model_id'], "saved_model"))
     model.compile(optimizer=models.get_optimizer(learning_rate=conf['learning_rate']),
                   loss=models.get_loss(),
-                  metrics=["accuracy"])
+                  metrics=["sparse_categorical_accuracy"])
     return model, conf
 
                                                   
