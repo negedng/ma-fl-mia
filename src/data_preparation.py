@@ -139,10 +139,16 @@ def get_mia_datasets(train_ds, test_ds, n_attacker_knowledge=100, n_attack_sampl
     x_test_attacker, y_test_attacker = get_np_from_tfds(test_ds_attacker)
     x_test_test, y_test_test = get_np_from_tfds(test_from_test_ds)
     x_test_train, y_test_train = get_np_from_tfds(test_from_train_ds)
+    
+    real_n_attack_sample = min(len(y_test_test),len(y_test_train),n_attack_sample)
+    x_test_test = x_test_test[:real_n_attack_sample]
+    y_test_test = y_test_test[:real_n_attack_sample]
+    x_test_train = x_test_train[:real_n_attack_sample]
+    y_test_train = y_test_train[:real_n_attack_sample]
 
     x_mia_test = np.concatenate([x_test_train, x_test_test])
     y_mia_test = np.concatenate([y_test_train, y_test_test])
-    mia_true = [1.0] * n_attack_sample + [0.0] * n_attack_sample
+    mia_true = [1.0] * real_n_attack_sample + [0.0] * real_n_attack_sample
     mia_true = np.array(mia_true)
     
     attacker_knowledge = {
