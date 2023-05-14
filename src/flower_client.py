@@ -19,7 +19,7 @@ class FlowerClient(fl.client.NumPyClient):
         model = models.get_model(unit_size=self.conf['local_unit_size'], static_bn=True, conf=self.conf)
         model.compile(optimizer=models.get_optimizer(learning_rate=self.conf['learning_rate']),
                       loss=models.get_loss(),
-                      metrics=['accuracy'])
+                      metrics=['sparse_categorical_accuracy'])
         self.model = model
     
     def calculate_unit_size(self):
@@ -49,6 +49,15 @@ class FlowerClient(fl.client.NumPyClient):
             self.model.set_weights(cp_weights)
         else:
             self.model.set_weights(weights)
+            
+    def save_model(self, path):
+        self.model.save_weights(path)
+        #saver = models.get_model(unit_size=self.conf['local_unit_size'], conf=self.conf)
+        #saver.compile(optimizer=models.get_optimizer(learning_rate=self.conf['learning_rate']),
+        #              loss=models.get_loss(),
+        #              metrics=['sparse_categorical_accuracy'])
+        #saver.set_weights(self.model.get_weights()) 
+        #saver.save_weights(path)      
 
     def fit(self, weights, config):
         """Flower fit passing updated weights, data size and additional params in a dict"""
@@ -67,7 +76,7 @@ class FlowerClient(fl.client.NumPyClient):
                                          "clients",
                                          str(self.cid),
                                          f'saved_model_pre_{str(config["round"])}')
-                self.model.save(save_path)
+                self.save_model(save_path)
                 
             history = self.model.fit(
                 train_ds,
@@ -82,7 +91,7 @@ class FlowerClient(fl.client.NumPyClient):
                                          "clients",
                                          str(self.cid),
                                          f'saved_model_post_{str(config["round"])}')
-                self.model.save(save_path)
+                self.save_model(save_path)
                 
             if np.isnan(history.history['loss'][-1]): # or np.isnan(history.history['val_loss'][-1]):
                 raise ValueError("Warning, client has NaN loss")
@@ -114,7 +123,7 @@ class FlowerClient(fl.client.NumPyClient):
             g_model.set_weights(weights)
             g_model.compile(optimizer=models.get_optimizer(learning_rate=self.conf['learning_rate']),
                       loss=models.get_loss(),
-                      metrics=['accuracy'])                      
+                      metrics=['sparse_categorical_accuracy'])                      
             loss, accuracy = g_model.evaluate(test_ds, verbose=0)
             
             return loss, self.test_len, {"local_accuracy": local_accuracy, "accuracy": accuracy}
