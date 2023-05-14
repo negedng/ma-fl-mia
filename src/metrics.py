@@ -62,12 +62,12 @@ def attack_on_clients(conf, X_split=None, Y_split=None, train_ds=None, val_ds=No
         epoch_id = "saved_model_post_"+last_epoch
         model_path = os.path.join(model_root_path, model_id, "clients", str(cid),epoch_id)
         local_unit_size = models.calculate_unit_size(cid, conf, len(X_split[cid]))
-
-        model = models.get_model(unit_size=local_unit_size, conf=conf)
+        conf["local_unit_size"] = local_unit_size
+        model = models.get_model(unit_size=local_unit_size, conf=conf, keep_scaling=True) # maybe you need static_bn?
         model.load_weights(model_path)
         model.compile(optimizer=models.get_optimizer(learning_rate=conf['learning_rate']),
                       loss=models.get_loss(),
-                      metrics=["accuracy"])
+                      metrics=["sparse_categorical_accuracy"])
         train_c_ds = tf.data.Dataset.from_tensor_slices((X_split[cid],Y_split[cid]))
         r = evaluate(conf, model, train_c_ds, val_ds, test_ds, verbose=0)
         r["cid"] = cid
@@ -78,13 +78,13 @@ def attack_on_clients(conf, X_split=None, Y_split=None, train_ds=None, val_ds=No
     avgs = {"avg_train_acc":np.mean(all_train_acc), "std_train_acc":np.std(all_train_acc)}
     all_test_acc = [a['test_acc'] for a in res]
     avgs["avg_test_acc"] = np.mean(all_test_acc)
-    avgs["std_test_acc"] = np.mean(all_test_acc)
+    avgs["std_test_acc"] = np.std(all_test_acc)
     adv_list = []
     for k in res[0].keys():
         if "adv" in k:
             adv_list.append(k)
     for adv in adv_list:
-        all_adv = [a['test_acc'] for a in res]
+        all_adv = [a[adv] for a in res]
         avgs["avg_"+adv] = np.mean(all_adv)
         avgs["std_"+adv] = np.std(all_adv)
         

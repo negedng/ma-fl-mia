@@ -3,25 +3,28 @@ import numpy as np
 
 
 class Scaler(tf.keras.layers.Layer):
-    def __init__(self, rate):
+    def __init__(self, rate, keep_scaling=False):
         super().__init__()
         self.rate = rate
+        self.keep_scaling = keep_scaling
 
     def call(self, inputs, training=None):
         if training:
             return inputs / self.rate
         else:
+            if self.keep_scaling:
+                return inputs / self.rate
             return inputs
 
 custom_objects = {
     "Scaler": Scaler
 }
 
-def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), static_bn=False, use_scaler=False, norm_mode="bn", default_hidden=[64, 128, 256, 512]):
+def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), static_bn=False, use_scaler=False, keep_scaling=False, norm_mode="bn", default_hidden=[64, 128, 256, 512]):
     """Model following the diao et al paper.
        Emmiting LN, GN and IN as it is not straightforward to cast to TF,
        and the paper shows superiority of the BN"""
-    def get_configurable_layers(use_scaler, norm_mode, static_bn):
+    def get_configurable_layers(use_scaler, norm_mode, static_bn, keep_scaling):
         if norm_mode == "bn":
             norm = tf.keras.layers.BatchNormalization(momentum=0.0, trainable= not(static_bn))
         elif norm_mode == "ln":
@@ -29,7 +32,7 @@ def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), static_bn=Fals
         else:
             norm = tf.keras.layers.Lambda(lambda x: x)
         if use_scaler:
-            scaler = Scaler(scaler_rate)
+            scaler = Scaler(scaler_rate, keep_scaling)
         else:
             scaler = tf.keras.layers.Lambda(lambda x: x)
         return norm, scaler
@@ -37,7 +40,7 @@ def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), static_bn=Fals
     hidden_sizes = [int(np.ceil(model_rate * x)) for x in default_hidden]
     scaler_rate = model_rate
 
-    norm, scaler = get_configurable_layers(use_scaler, norm_mode, static_bn)
+    norm, scaler = get_configurable_layers(use_scaler, norm_mode, static_bn, keep_scaling)
 
     layers = []
     layers.append(tf.keras.layers.Conv2D(hidden_sizes[0], 3, padding='same', input_shape=input_shape))
@@ -46,7 +49,7 @@ def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), static_bn=Fals
     layers.append(tf.keras.layers.ReLU())
     layers.append(tf.keras.layers.MaxPool2D(2))
     for i in range(len(hidden_sizes) - 1):
-        norm, scaler = get_configurable_layers(use_scaler, norm_mode, static_bn)
+        norm, scaler = get_configurable_layers(use_scaler, norm_mode, static_bn, keep_scaling)
 
         layers.append(tf.keras.layers.Conv2D(hidden_sizes[i + 1], 3, padding='same'))
         layers.append(scaler)

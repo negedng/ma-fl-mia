@@ -35,19 +35,22 @@ def test(model_path):
     
     print(f'Testing model {model_path}')
     # Evaluate
+    # Per client attack
+    if not os.path.exists(os.path.join(model_path, "client_results.json")):
+        results = metrics.attack_on_clients(conf, X_split, Y_split, train_ds, val_ds, test_ds)
+        print(results)
+        with open(os.path.join(model_path, "client_results.json"), 'w') as f:
+            f.write(json.dumps(results))    
+    avg = results['average']        
     if not os.path.exists(os.path.join(model_path, "tests.json")):
         results = metrics.evaluate(conf, model, train_ds, val_ds, test_ds)
+        results['client_attacks'] = avg
         print(results)
 
         with open(os.path.join(model_path, "tests.json"), 'w') as f:
             f.write(json.dumps(results))
     
-    # Per client attack
-    if not os.path.exists(os.path.join(model_path, "client_results.json")):
-        results = metrics.attack_on_client(conf, X_split, Y_split, train_ds, val_ds, test_ds)
-        print(results)
-        with open(os.path.join(model_path, "client_results.json"), 'w') as f:
-            f.write(json.dumps(results))    
+
 
 
 def test_all(model_path):
