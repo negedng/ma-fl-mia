@@ -101,12 +101,11 @@ if __name__ == "__main__":
     # Instantiate the parser
     parser = argparse.ArgumentParser(description='Select experiment from exp.setup, for single run change config.json')
     parser.add_argument('model_id', type=str, help='model id like: 20230424-221925')
-    parser.add_argument('--root_path', type=str, help='root path for the model_id', default='/')
     parser.add_argument('--test_all', help='whether to run test_all or not', action='store_true')
     parser.add_argument('-o','--overwrite', help='whether to rewrite existing files', action='store_true')
     args = parser.parse_args()
     conf = utils.load_config()
-    model_path = os.path.join(args.root_path,'data/models/ma-fl-mia/federated/',args.model_id)
+    model_path = os.path.join(conf['root_path'],'data/models/ma-fl-mia/federated/',args.model_id)
     if args.test_all:
         test_all(model_path)
     else:
