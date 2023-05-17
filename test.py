@@ -8,10 +8,11 @@ import tensorflow_datasets as tfds
 
 from src import utils, models, data_preparation, attacks, metrics
 
-def test(model_path):
+def test(model_path, overwrite=False):
     
     config_path = os.path.join(model_path, 'config.json')
-    conf = utils.load_config(env_path=None, config_path=config_path)
+    conf = utils.load_config(config_path=config_path)
+    conf['paths']['models']
     print(conf)
     train_ds, val_ds, test_ds = data_preparation.load_and_preprocess(conf=conf)
     X_train, Y_train = utils.get_np_from_tfds(train_ds)
@@ -28,7 +29,7 @@ def test(model_path):
     else:
         weights_path = os.path.join(model_path,'saved_model_best')        
     model = models.get_model(unit_size=conf['unit_size'], conf=conf)
-    model.load_weights(os.path.join(weights_path))
+    model.load_weights(os.path.join(weights_path)).expect_partial()
     model.compile(optimizer=models.get_optimizer(),
                   loss=models.get_loss(),
                   metrics=["accuracy"])
@@ -36,13 +37,13 @@ def test(model_path):
     print(f'Testing model {model_path}')
     # Evaluate
     # Per client attack
-    if not os.path.exists(os.path.join(model_path, "client_results.json")):
+    if overwrite or not os.path.exists(os.path.join(model_path, "client_results.json")):
         results = metrics.attack_on_clients(conf, X_split, Y_split, train_ds, val_ds, test_ds)
         print(results)
         with open(os.path.join(model_path, "client_results.json"), 'w') as f:
             f.write(json.dumps(results))    
     avg = results['average']        
-    if not os.path.exists(os.path.join(model_path, "tests.json")):
+    if overwrite or not os.path.exists(os.path.join(model_path, "tests.json")):
         results = metrics.evaluate(conf, model, train_ds, val_ds, test_ds)
         results['client_attacks'] = avg
         print(results)
@@ -102,10 +103,12 @@ if __name__ == "__main__":
     parser.add_argument('model_id', type=str, help='model id like: 20230424-221925')
     parser.add_argument('--root_path', type=str, help='root path for the model_id', default='/')
     parser.add_argument('--test_all', help='whether to run test_all or not', action='store_true')
+    parser.add_argument('-o','--overwrite', help='whether to rewrite existing files', action='store_true')
     args = parser.parse_args()
+    conf = utils.load_config()
     model_path = os.path.join(args.root_path,'data/models/ma-fl-mia/federated/',args.model_id)
     if args.test_all:
         test_all(model_path)
     else:
-        test(model_path)
+        test(model_path, args.overwrite)
 

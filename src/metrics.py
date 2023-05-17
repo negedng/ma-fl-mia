@@ -64,7 +64,7 @@ def attack_on_clients(conf, X_split=None, Y_split=None, train_ds=None, val_ds=No
         local_unit_size = models.calculate_unit_size(cid, conf, len(X_split[cid]))
         conf["local_unit_size"] = local_unit_size
         model = models.get_model(unit_size=local_unit_size, conf=conf, keep_scaling=True) # maybe you need static_bn?
-        model.load_weights(model_path)
+        model.load_weights(model_path).expect_partial()
         model.compile(optimizer=models.get_optimizer(learning_rate=conf['learning_rate']),
                       loss=models.get_loss(),
                       metrics=["sparse_categorical_accuracy"])

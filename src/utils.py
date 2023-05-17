@@ -32,9 +32,12 @@ def load_config(env_path='env.json', config_path='config.json'):
         return config
     with open(env_path, "r") as f:
             env = json.load(f)
-    config.update(env)
     for k,v in config['paths'].items():
-        config['paths'][k] = str(os.path.join(config['root_path'], v))
+        if 'root_path' in config.keys():
+            if v[:len(config['root_path'])]==config['root_path']:
+                v = v[len(config['root_path']):]
+        config['paths'][k] = str(os.path.join(env['root_path'], v))
+    config.update(env)
     return config
 
 
