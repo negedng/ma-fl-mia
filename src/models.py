@@ -20,7 +20,7 @@ custom_objects = {
     "Scaler": Scaler
 }
 
-def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), static_bn=False, use_scaler=False, keep_scaling=False, norm_mode="bn", default_hidden=[64, 128, 256, 512]):
+def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), static_bn=False, use_scaler=True, keep_scaling=False, norm_mode="bn", default_hidden=[64, 128, 256, 512]):
     """Model following the diao et al paper.
        Emmiting LN, GN and IN as it is not straightforward to cast to TF,
        and the paper shows superiority of the BN"""
@@ -64,21 +64,33 @@ def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), static_bn=Fals
     return model
 
 
-def alexnet(unit_size=64, num_classes=10, input_shape=(32,32,3), static_bn=False):
+def alexnet(unit_size=64, num_classes=10, input_shape=(32,32,3), static_bn=False, use_scaler=True, keep_scaling=False, model_rate=1.0):
     '''AlexNet for CIFAR10. FC layers are removed. Paddings are adjusted.
     Without BN, the start learning rate should be 0.01
     (c) YANG, Wei 
     https://github.com/bearpaw/pytorch-classification/tree/master
     '''
-    # TODO: Needs scaler
+    def get_scaler(use_scaler, keep_scaling):
+        if use_scaler:
+            scaler = Scaler(scaler_rate, keep_scaling)
+        else:
+            scaler = tf.keras.layers.Lambda(lambda x: x)
+        return scaler
+    scaler_rate = model_rate
+    
     model = tf.keras.models.Sequential([
         tf.keras.layers.Conv2D(unit_size, kernel_size=11, strides=4, padding='same', activation='relu', input_shape=input_shape),
+        get_scaler(use_scaler, keep_scaling),
         tf.keras.layers.MaxPool2D(pool_size=2, strides=2, padding='valid'),
         tf.keras.layers.Conv2D(unit_size*3, kernel_size=5, padding='same', activation='relu'),
+        get_scaler(use_scaler, keep_scaling),
         tf.keras.layers.MaxPool2D(pool_size=2, strides=2, padding='valid'),
         tf.keras.layers.Conv2D(unit_size*6, kernel_size=3, padding='same', activation='relu'),
+        get_scaler(use_scaler, keep_scaling),
         tf.keras.layers.Conv2D(unit_size*4, kernel_size=3, padding='same', activation='relu'),
+        get_scaler(use_scaler, keep_scaling),
         tf.keras.layers.Conv2D(unit_size*4, kernel_size=3, padding='same', activation='relu'),
+        get_scaler(use_scaler, keep_scaling),
         tf.keras.layers.MaxPool2D(pool_size=2, strides=2, padding='valid'),
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(num_classes)
@@ -115,8 +127,16 @@ def simple_CNN(unit_size, num_classes=10, input_shape=(32,32,3), static_bn=False
     return model
 
 def get_model(unit_size, model_mode=None, conf={}, *args, **kwargs):
+
     if (model_mode is None) and ("model_mode" in conf.keys()):
         model_mode = conf['model_mode']
+        
+    if "local_unit_size" not in conf.keys():
+        local_unit_size = unit_size
+        default_unit_size = unit_size
+    else:
+        local_unit_size = unit_size
+        default_unit_size = conf['unit_size']
     if model_mode=="simple_CNN":
         return simple_CNN(unit_size, *args, **kwargs)
     elif model_mode=="diao_CNN":
@@ -124,20 +144,16 @@ def get_model(unit_size, model_mode=None, conf={}, *args, **kwargs):
             norm_mode = "bn"
         else:
             norm_mode = conf['norm_mode']
-        if "local_unit_size" not in conf.keys():
-            local_unit_size = unit_size
-            default_unit_size = unit_size
-        else:
-            local_unit_size = unit_size
-            default_unit_size = conf['unit_size']
+
         default_hidden = [default_unit_size,
                           default_unit_size*2,
                           default_unit_size*4,
                           default_unit_size*8]
         model_rate = float(local_unit_size)/float(default_unit_size)
-        return diao_CNN(model_rate, default_hidden=default_hidden, use_scaler=True, norm_mode=norm_mode, *args, **kwargs)
+        return diao_CNN(model_rate, default_hidden=default_hidden, norm_mode=norm_mode, *args, **kwargs)
     elif model_mode=="alexnet":
-        return alexnet(unit_size, *args, **kwargs)
+        model_rate = float(local_unit_size)/float(default_unit_size)
+        return alexnet(unit_size, model_rate=model_rate, *args, **kwargs)
     raise ValueError(f'Unknown model type{mode}')
     
 
