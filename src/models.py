@@ -68,7 +68,9 @@ def alexnet(unit_size=64, num_classes=10, input_shape=(32,32,3), static_bn=False
     '''AlexNet for CIFAR10. FC layers are removed. Paddings are adjusted.
     Without BN, the start learning rate should be 0.01
     (c) YANG, Wei 
+    https://github.com/bearpaw/pytorch-classification/tree/master
     '''
+    # TODO: Needs scaler
     model = tf.keras.models.Sequential([
         tf.keras.layers.Conv2D(unit_size, kernel_size=11, strides=4, padding='same', activation='relu', input_shape=input_shape),
         tf.keras.layers.MaxPool2D(pool_size=2, strides=2, padding='valid'),
@@ -135,8 +137,7 @@ def get_model(unit_size, model_mode=None, conf={}, *args, **kwargs):
         model_rate = float(local_unit_size)/float(default_unit_size)
         return diao_CNN(model_rate, default_hidden=default_hidden, use_scaler=True, norm_mode=norm_mode, *args, **kwargs)
     elif model_mode=="alexnet":
-        input_shape=(227,227,3)
-        return alexnet(unit_size, input_shape=input_shape, *args, **kwargs)
+        return alexnet(unit_size, *args, **kwargs)
     raise ValueError(f'Unknown model type{mode}')
     
 

@@ -166,10 +166,7 @@ def get_mia_datasets(train_ds, test_ds, n_attacker_knowledge=100, n_attack_sampl
 
 
 def preprocess(image, conf):
-    if ("model_mode" in conf.keys()) and (conf["model_mode"]=="alexnet"):
-        input_shape=(227,227,3)
-    else:
-        input_shape=(32,32,3)
+    input_shape=(32,32,3)
     if image.shape!=input_shape:
         image = tf.image.resize(image, input_shape[:2])
     if conf['data_normalize']:
