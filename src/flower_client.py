@@ -83,16 +83,7 @@ class FlowerClient(fl.client.NumPyClient):
                 epochs=self.conf['epochs'],
                 verbose=0
             )
-            
-            if self.conf['save_last_clients']>0 and config['round']>self.conf['rounds']-self.conf['save_last_clients']:
-                # save client models in last rounds
-                save_path = os.path.join(self.conf['paths']['models'],
-                                         self.conf['model_id'], 
-                                         "clients",
-                                         str(self.cid),
-                                         f'saved_model_post_{str(config["round"])}')
-                self.save_model(save_path)
-                
+
             if np.isnan(history.history['loss'][-1]): # or np.isnan(history.history['val_loss'][-1]):
                 raise ValueError("Warning, client has NaN loss")
             
@@ -100,6 +91,31 @@ class FlowerClient(fl.client.NumPyClient):
                 'client_id': self.cid,
                 'loss': history.history['loss']
             }
+            
+            client_weight = self.train_len if self.conf['weight_clients'] else 1
+            
+            if self.conf["hide_layers"] == "no":
+                trained_weights = self.model.get_weights()
+            elif self.conf["hide_layers"] == "yes":
+                trained_weights = self.model.get_weights()
+                total_rows = len(trained_weights)
+                r = np.random.randint(total_rows)
+                trained_weights[r] = weights[r]
+                self.set_parameters(trained_weights, config)
+            else:
+                raise NotImplementedError(f'unrecognized hide_layers in config:{self.conf["hide_layers"]}')
+            
+            
+            # Save model    
+            if self.conf['save_last_clients']>0 and config['round']>self.conf['rounds']-self.conf['save_last_clients']:
+                # save client models in last rounds
+                save_path = os.path.join(self.conf['paths']['models'],
+                                         self.conf['model_id'], 
+                                         "clients",
+                                         str(self.cid),
+                                         f'saved_model_post_{str(config["round"])}')
+                self.save_model(save_path)                
+                
         except Exception as e:
             log(
                 ERROR,
@@ -107,8 +123,9 @@ class FlowerClient(fl.client.NumPyClient):
                 str(e),
             )
             raise Error("Client training terminated unexpectedly")
-        w = self.train_len if self.conf['weight_clients'] else 1
-        return self.model.get_weights(), w, shared_metrics
+
+        
+        return trained_weights, client_weight, shared_metrics
 
     def evaluate(self, weights, config):
         try:

@@ -30,5 +30,6 @@
     "save_last_clients": 5,
     "aug": false,
     "aug_crop": 0,
-    "norm_mode": "bn"
+    "norm_mode": "bn",
+    "hide_layers": "no"
 }
