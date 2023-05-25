@@ -3,8 +3,8 @@ import numpy as np
 
 
 class Scaler(tf.keras.layers.Layer):
-    def __init__(self, rate, keep_scaling=False):
-        super().__init__()
+    def __init__(self, rate, keep_scaling=False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.rate = rate
         self.keep_scaling = keep_scaling
 
@@ -24,42 +24,49 @@ def diao_CNN(model_rate=1, num_classes=10, input_shape=(32,32,3), static_bn=Fals
     """Model following the diao et al paper.
        Emmiting LN, GN and IN as it is not straightforward to cast to TF,
        and the paper shows superiority of the BN"""
-    def get_configurable_layers(use_scaler, norm_mode, static_bn, keep_scaling):
+    def get_configurable_layers(use_scaler, norm_mode, static_bn, keep_scaling, name=None):
+        if name is not None:
+            norm_name = 'norm_'+name
+            scaler_name = 'scaler_'+name
+        else:
+            norm_name = None
+            scaler_name = None
+            
         if norm_mode == "bn":
-            norm = tf.keras.layers.BatchNormalization(momentum=0.0, trainable= not(static_bn))
+            norm = tf.keras.layers.BatchNormalization(momentum=0.0, trainable= not(static_bn), name=norm_name)
         elif norm_mode == "ln":
-            norm = tf.keras.layers.LayerNormalization(axis=[1, 2, 3])
+            norm = tf.keras.layers.LayerNormalization(axis=[1, 2, 3], name=norm_name)
         else:
-            norm = tf.keras.layers.Lambda(lambda x: x)
+            norm = tf.keras.layers.Lambda(lambda x: x, name=norm_name)
         if use_scaler:
-            scaler = Scaler(scaler_rate, keep_scaling)
+            scaler = Scaler(scaler_rate, keep_scaling, name=scaler_name)
         else:
-            scaler = tf.keras.layers.Lambda(lambda x: x)
+            scaler = tf.keras.layers.Lambda(lambda x: x, name=scaler_name)
         return norm, scaler
 
     hidden_sizes = [int(np.ceil(model_rate * x)) for x in default_hidden]
     scaler_rate = model_rate
 
-    norm, scaler = get_configurable_layers(use_scaler, norm_mode, static_bn, keep_scaling)
+    norm, scaler = get_configurable_layers(use_scaler, norm_mode, static_bn, keep_scaling, name="1")
 
     layers = []
-    layers.append(tf.keras.layers.Conv2D(hidden_sizes[0], 3, padding='same', input_shape=input_shape))
+    layers.append(tf.keras.layers.Conv2D(hidden_sizes[0], 3, padding='same', input_shape=input_shape, name="conv2d_1"))
     layers.append(scaler)
     layers.append(norm)
-    layers.append(tf.keras.layers.ReLU())
-    layers.append(tf.keras.layers.MaxPool2D(2))
+    layers.append(tf.keras.layers.ReLU(name="re_lu_1"))
+    layers.append(tf.keras.layers.MaxPool2D(2, name="max_pooling2d_1"))
     for i in range(len(hidden_sizes) - 1):
-        norm, scaler = get_configurable_layers(use_scaler, norm_mode, static_bn, keep_scaling)
+        norm, scaler = get_configurable_layers(use_scaler, norm_mode, static_bn, keep_scaling, name=str(i+2))
 
-        layers.append(tf.keras.layers.Conv2D(hidden_sizes[i + 1], 3, padding='same'))
+        layers.append(tf.keras.layers.Conv2D(hidden_sizes[i + 1], 3, padding='same', name="conv2d_"+str(i+2)))
         layers.append(scaler)
         layers.append(norm)
-        layers.append(tf.keras.layers.ReLU())
-        layers.append(tf.keras.layers.MaxPool2D(2))
+        layers.append(tf.keras.layers.ReLU(name="re_lu_"+str(i+2)))
+        layers.append(tf.keras.layers.MaxPool2D(2, name="max_pooling2d_"+str(i+2)))
     layers = layers[:-1]
-    layers.extend([tf.keras.layers.GlobalAvgPool2D(),
-                    tf.keras.layers.Flatten(),
-                    tf.keras.layers.Dense(num_classes)])
+    layers.extend([tf.keras.layers.GlobalAvgPool2D(name="global_average_pooling2d"),
+                    tf.keras.layers.Flatten(name="flatten"),
+                    tf.keras.layers.Dense(num_classes, name="output")])
     model = tf.keras.Sequential(layers)
     return model
 
@@ -70,30 +77,30 @@ def alexnet(unit_size=64, num_classes=10, input_shape=(32,32,3), static_bn=False
     (c) YANG, Wei 
     https://github.com/bearpaw/pytorch-classification/tree/master
     '''
-    def get_scaler(use_scaler, keep_scaling):
+    def get_scaler(use_scaler, keep_scaling, name=None):
         if use_scaler:
-            scaler = Scaler(scaler_rate, keep_scaling)
+            scaler = Scaler(scaler_rate, keep_scaling, name=name)
         else:
-            scaler = tf.keras.layers.Lambda(lambda x: x)
+            scaler = tf.keras.layers.Lambda(lambda x: x, name=name)
         return scaler
     scaler_rate = model_rate
     
     model = tf.keras.models.Sequential([
-        tf.keras.layers.Conv2D(unit_size, kernel_size=11, strides=4, padding='same', activation='relu', input_shape=input_shape),
-        get_scaler(use_scaler, keep_scaling),
-        tf.keras.layers.MaxPool2D(pool_size=2, strides=2, padding='valid'),
-        tf.keras.layers.Conv2D(unit_size*3, kernel_size=5, padding='same', activation='relu'),
-        get_scaler(use_scaler, keep_scaling),
-        tf.keras.layers.MaxPool2D(pool_size=2, strides=2, padding='valid'),
-        tf.keras.layers.Conv2D(unit_size*6, kernel_size=3, padding='same', activation='relu'),
-        get_scaler(use_scaler, keep_scaling),
-        tf.keras.layers.Conv2D(unit_size*4, kernel_size=3, padding='same', activation='relu'),
-        get_scaler(use_scaler, keep_scaling),
-        tf.keras.layers.Conv2D(unit_size*4, kernel_size=3, padding='same', activation='relu'),
-        get_scaler(use_scaler, keep_scaling),
-        tf.keras.layers.MaxPool2D(pool_size=2, strides=2, padding='valid'),
-        tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(num_classes)
+        tf.keras.layers.Conv2D(unit_size, kernel_size=11, strides=4, padding='same', activation='relu', input_shape=input_shape, name="conv2d_1"),
+        get_scaler(use_scaler, keep_scaling, name="scaler_1"),
+        tf.keras.layers.MaxPool2D(pool_size=2, strides=2, padding='valid', name="max_pooling2d_1"),
+        tf.keras.layers.Conv2D(unit_size*3, kernel_size=5, padding='same', activation='relu', name="conv2d_2"),
+        get_scaler(use_scaler, keep_scaling, name="scaler_2"),
+        tf.keras.layers.MaxPool2D(pool_size=2, strides=2, padding='valid', name="max_pooling2d_2"),
+        tf.keras.layers.Conv2D(unit_size*6, kernel_size=3, padding='same', activation='relu', name="conv2d_3"),
+        get_scaler(use_scaler, keep_scaling, name="scaler_3"),
+        tf.keras.layers.Conv2D(unit_size*4, kernel_size=3, padding='same', activation='relu', name="conv2d_4"),
+        get_scaler(use_scaler, keep_scaling, name="scaler_4"),
+        tf.keras.layers.Conv2D(unit_size*4, kernel_size=3, padding='same', activation='relu', name="conv2d_5"),
+        get_scaler(use_scaler, keep_scaling, name="scaler_5"),
+        tf.keras.layers.MaxPool2D(pool_size=2, strides=2, padding='valid', name="max_pooling2d_3"),
+        tf.keras.layers.Flatten(name="flatten"),
+        tf.keras.layers.Dense(num_classes, name="output")
     ])
     return model
 
