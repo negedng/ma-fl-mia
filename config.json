@@ -26,7 +26,7 @@
     "permutate_cuts": true,
     "cut_type": "simple",
     "data_normalize": true,
-    "data_centralize": false,
+    "data_centralize": true,
     "save_last_clients": 5,
     "aug": true,
     "aug_crop": 4,
