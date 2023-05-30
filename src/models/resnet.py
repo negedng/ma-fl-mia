@@ -48,15 +48,25 @@ def make_layer(x, planes, blocks, stride=1, name=None, use_scaler=False, scaler_
 
 
 def resnet(blocks_per_layer, unit_size=64, num_classes=10, input_shape=(32,32,3), use_scaler=True, model_rate=1.0, keep_scaling=False, norm_mode="bn", static_bn=False):
+
+    
     scaler_rate = model_rate
 
     inputs = tf.keras.Input(shape=input_shape)
     x = inputs
-    x = tf.keras.layers.Conv2D(filters=unit_size, kernel_size=7, strides=2, use_bias=False, kernel_initializer=kaiming_normal, padding='same', name='conv1')(x)
-    x = get_scaler(use_scaler, scaler_rate, keep_scaling, name=f'scaler1')(x)
-    x = get_norm(norm_mode, static_bn, name=f'bn1')(x)
-    x = tf.keras.layers.ReLU(name='relu1')(x)
-    x = tf.keras.layers.MaxPool2D(pool_size=3, strides=2, padding='same', name='maxpool')(x)
+    
+    # small images have different ResNet: https://github.com/raphaelreme/torch-resnet/blob/main/torch_resnet/resnet.py
+    if max(input_shape)<100: 
+        x = tf.keras.layers.Conv2D(filters=unit_size, kernel_size=3, strides=1, use_bias=False, kernel_initializer=kaiming_normal, padding='same', name='conv1')(x)
+        x = get_scaler(use_scaler, scaler_rate, keep_scaling, name=f'scaler1')(x)
+        x = get_norm(norm_mode, static_bn, name=f'bn1')(x)
+        x = tf.keras.layers.ReLU(name='relu1')(x)
+    else:
+        x = tf.keras.layers.Conv2D(filters=unit_size, kernel_size=7, strides=2, use_bias=False, kernel_initializer=kaiming_normal, padding='same', name='conv1')(x)
+        x = get_scaler(use_scaler, scaler_rate, keep_scaling, name=f'scaler1')(x)
+        x = get_norm(norm_mode, static_bn, name=f'bn1')(x)
+        x = tf.keras.layers.ReLU(name='relu1')(x)
+        x = tf.keras.layers.MaxPool2D(pool_size=3, strides=2, padding='same', name='maxpool')(x)
 
     x = make_layer(x, unit_size, blocks_per_layer[0], name='layer1')
     x = make_layer(x, unit_size*2, blocks_per_layer[1], stride=2, name='layer2')
