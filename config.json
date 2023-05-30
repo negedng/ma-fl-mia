@@ -29,7 +29,8 @@
     "data_centralize": false,
     "save_last_clients": 5,
     "aug": false,
-    "aug_crop": 0,
+    "aug_crop": 4,
+    "aug_horizontal_flip":true,
     "norm_mode": "bn",
     "hide_layers": "no"
 }
