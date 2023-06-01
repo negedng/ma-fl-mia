@@ -51,7 +51,7 @@ class FlowerClient(fl.client.NumPyClient):
         try:
             self.set_parameters(weights, config)
             
-            train_ds = data_preparation.ds_from_numpy(self.train_data)
+            train_ds = data_preparation.get_ds_from_np(self.train_data)
             if self.conf["aug"]:
                 train_ds = train_ds.map(lambda x,y: augmentation.aug_ds(x,y,self.conf))
             train_ds = data_preparation.preprocess_data(train_ds, conf=self.conf, shuffle=True)
@@ -114,13 +114,13 @@ class FlowerClient(fl.client.NumPyClient):
     def evaluate(self, weights, config):
         try:
             self.set_parameters(weights, config)
-            test_ds = data_preparation.ds_from_numpy(self.test_data)
+            test_ds = data_preparation.get_ds_from_np(self.test_data)
             test_ds = data_preparation.preprocess_data(test_ds, self.conf)
             
             # Local model eval
             loss, local_accuracy = models.evaluate(self.model, test_ds, verbose=0)
             # Global model eval
-            test_ds = data_preparation.ds_from_numpy(self.test_data)
+            test_ds = data_preparation.get_ds_from_np(self.test_data)
             test_ds = data_preparation.preprocess_data(test_ds, self.conf)
             g_model = models.init_model(self.conf['unit_size'], conf=self.conf, weights=weights)                
             loss, accuracy = models.evaluate(g_model, test_ds, verbose=0)

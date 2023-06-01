@@ -3,7 +3,7 @@ import tensorflow_datasets as tfds
 import tensorflow as tf
 import os
 
-
+from src import utils
 
 def dirichlet_split(num_classes, num_clients, dirichlet_alpha=1.0, mode="classes", seed=None):
     """Dirichlet distribution of the data points, 
@@ -139,26 +139,30 @@ def get_np_from_ds(ds):
     return np.array(X), np.array(Y)
     
     
-def get_mia_datasets(train_ds, test_ds, n_attacker_knowledge=100, n_attack_sample=5000, seed=None):
+def get_mia_datasets(train_data, test_data, n_attacker_knowledge=100, n_attack_sample=5000, seed=None):
     """Get attacker training data knowledge 
     and sample from train and test set for attack evaluation."""
 
-    train_ds_attacker = train_ds.shuffle(50000, seed=seed).take(n_attacker_knowledge)
-    test_ds_attacker = test_ds.shuffle(10000, seed=seed).take(n_attacker_knowledge)
+    x_train, y_train = train_data
+    x_test, y_test = test_data
+    train_attacker_id = utils.select_n_index(n_attacker_knowledge,len(x_train), seed=seed)
+    test_attacker_id = utils.select_n_index(n_attacker_knowledge, len(x_test), seed=seed)
 
-    test_from_test_ds = test_ds.shuffle(10000, seed=seed).take(n_attack_sample)
-    test_from_train_ds = train_ds.shuffle(50000, seed=seed).take(n_attack_sample)
+    real_n_attack_sample = min(len(x_train), len(x_test), n_attack_sample)
 
-    x_train_attacker, y_train_attacker = get_np_from_ds(train_ds_attacker)
-    x_test_attacker, y_test_attacker = get_np_from_ds(test_ds_attacker)
-    x_test_test, y_test_test = get_np_from_ds(test_from_test_ds)
-    x_test_train, y_test_train = get_np_from_ds(test_from_train_ds)
-    
-    real_n_attack_sample = min(len(y_test_test),len(y_test_train),n_attack_sample)
-    x_test_test = x_test_test[:real_n_attack_sample]
-    y_test_test = y_test_test[:real_n_attack_sample]
-    x_test_train = x_test_train[:real_n_attack_sample]
-    y_test_train = y_test_train[:real_n_attack_sample]
+    test_from_train_id = utils.select_n_index(-real_n_attack_sample,len(x_train), seed=seed)
+    test_from_test_id = utils.select_n_index(-real_n_attack_sample,len(x_test), seed=seed)
+
+
+    x_train_attacker = x_train[train_attacker_id]
+    y_train_attacker = y_train[train_attacker_id]
+    x_test_attacker = x_test[test_attacker_id]
+    y_test_attacker = y_test[test_attacker_id]
+
+    x_test_test = x_test[test_from_test_id]
+    y_test_test = y_test[test_from_test_id]
+    x_test_train = x_train[test_from_train_id]
+    y_test_train = y_train[test_from_train_id]
 
     x_mia_test = np.concatenate([x_test_train, x_test_test])
     y_mia_test = np.concatenate([y_test_train, y_test_test])
@@ -199,11 +203,16 @@ def preprocess_ds(image, label, conf):
     return image, label
 
 
-def preprocess_data(data, conf, shuffle=False):
+def preprocess_data(data, conf, shuffle=False, cache=False):
     data = data.map(lambda x,y: preprocess_ds(x,y,conf)) 
     if shuffle:
+        if cache:
+            data = data.cache()
         data = data.shuffle(5000)
-    data = data.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE)
+    data = data.batch(conf['batch_size'])
+    if not shuffle and cache:
+        data = data.cache()
+    data = data.prefetch(tf.data.AUTOTUNE)
     return data
 
 
@@ -221,5 +230,5 @@ def load_data(dataset_mode="cifar10", input_shape=(32,32,3), val_split=True, nor
     return train_ds, val_ds, test_ds
 
 
-def ds_from_numpy(data):
+def get_ds_from_np(data):
     return tf.data.Dataset.from_tensor_slices(data)

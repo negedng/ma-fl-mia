@@ -41,6 +41,8 @@ def select_n_from_each_class(X_train, Y_train, n):
 
 
 def select_n_index(n, total_len, seed=None):
+    if n<0:
+        return np.random.RandomState(seed=seed).permutation(total_len)[n:]
     return np.random.RandomState(seed=seed).permutation(total_len)[:n]
 
 

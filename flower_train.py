@@ -135,7 +135,10 @@ if __name__ == "__main__":
         
         print("Training completed, model evaluation")
         # Evaluate
-
+        train_ds = data_preparation.preprocess_data(train_ds, conf)
+        val_ds = data_preparation.preprocess_data(val_ds, conf, cache=True)
+        test_ds = data_preparation.preprocess_data(test_ds, conf, cache=True)
+        
         results = metrics.evaluate(model_conf, model, train_ds, val_ds, test_ds)
         
         # Per client eval

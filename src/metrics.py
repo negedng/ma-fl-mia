@@ -9,14 +9,12 @@ def evaluate(conf, model, train_ds=None, val_ds=None, test_ds=None, verbose=1):
     if train_ds is None:
         train_ds, val_ds, test_ds = data_preparation.load_data(conf=conf)
 
-    r = data_preparation.get_mia_datasets(train_ds, test_ds,
+    train_data = data_preparation.get_np_from_ds(train_ds)
+    test_data = data_preparation.get_np_from_ds(test_ds)
+    r = data_preparation.get_mia_datasets(train_data, test_data,
                                           conf['n_attacker_knowledge'],
                                           conf['n_attack_sample'],
                                           conf['seed'])
-
-    train_ds = data_preparation.preprocess_data(train_ds, conf)
-    val_ds = data_preparation.preprocess_data(val_ds, conf)
-    test_ds = data_preparation.preprocess_data(test_ds, conf)
 
     train_performance = models.evaluate(model, train_ds, verbose=verbose)
     if val_ds is not None:
@@ -68,7 +66,8 @@ def attack_on_clients(conf, X_split=None, Y_split=None, train_ds=None, val_ds=No
         local_unit_size = utils.calculate_unit_size(cid, conf, len(X_split[cid]))
         conf["local_unit_size"] = local_unit_size
         model = models.init_model(unit_size=local_unit_size, conf=conf, model_path=model_path, keep_scaling=True)
-        train_c_ds = data_preparation.ds_from_numpy((X_split[cid],Y_split[cid]))
+        train_c_ds = data_preparation.get_ds_from_np((X_split[cid],Y_split[cid]))
+        train_c_ds = data_preparation.preprocess_data(train_c_ds, conf=conf)
         r = evaluate(conf, model, train_c_ds, val_ds, test_ds, verbose=0)
         r["cid"] = cid
         r["local_unit_size"] = local_unit_size
@@ -107,7 +106,7 @@ def evaluate_per_client(conf, model, X_split, Y_split, train_ds=None, val_ds=Non
     results = []
     for X_client, Y_client in tqdm(zip(X_split, Y_split), total=len(X_split)):
         c_res = {}
-        train_c_ds = data_preparation.ds_from_numpy((X_client,Y_client))
+        train_c_ds = data_preparation.get_ds_from_np((X_client,Y_client))
         train_c_ds = data_preparation.preprocess_data(train_c_ds, conf)
         
         train_performance = models.evaluate(model, train_c_ds, verbose=0)  
