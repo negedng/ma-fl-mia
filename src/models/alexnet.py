@@ -26,7 +26,7 @@ def alexnet(unit_size=64, num_classes=10, input_shape=(32,32,3), static_bn=False
         get_scaler(use_scaler, scaler_rate, keep_scaling, name="scaler_3"),
         tf.keras.layers.ReLU(name="re_lu_3"),
         tf.keras.layers.Conv2D(unit_size*4, kernel_size=3, padding='same', name="conv2d_4"),
-        get_scaler(use_scaler, keep_scaling, name="scaler_4"),
+        get_scaler(use_scaler, scaler_rate, keep_scaling, name="scaler_4"),
         tf.keras.layers.ReLU(name="re_lu_4"),
         tf.keras.layers.Conv2D(unit_size*4, kernel_size=3, padding='same', name="conv2d_5"),
         get_scaler(use_scaler, scaler_rate, keep_scaling, name="scaler_5"),
