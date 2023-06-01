@@ -20,10 +20,10 @@ from flwr.server.strategy.aggregate import aggregate
 import os
 import numpy as np
 
-from src import models, ma_utils    
+from src import model_aggregation, models    
 
 def get_example_model_shape(conf):
-    model = models.get_model(unit_size=conf['unit_size'], conf=conf)
+    model = models.get_model_architecture(unit_size=conf['unit_size'], conf=conf)
     shapes = [np.shape(l) for l in model.get_weights()]
     return shapes
     
@@ -75,12 +75,12 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             for _, fit_res in results
         ]
         if self.conf['ma_mode'] == 'heterofl':
-            parameters_aggregated = ndarrays_to_parameters(ma_utils.aggregate_hetero(weights_results))
+            parameters_aggregated = ndarrays_to_parameters(model_aggregation.aggregate_hetero(weights_results))
         elif self.conf['ma_mode'] == 'rm-cid':
             cid_results = [
                 fit_res.metrics['client_id'] for _, fit_res in results
             ]
-            parameters_aggregated = ndarrays_to_parameters(ma_utils.aggregate_rmcid(weights_results, 
+            parameters_aggregated = ndarrays_to_parameters(model_aggregation.aggregate_rmcid(weights_results, 
                                                                                     cid_results, 
                                                                                     self.global_model_shapes, 
                                                                                     server_round, 
@@ -124,11 +124,8 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             log(INFO, "Saving model to %s", save_path)
             aggregated_weights = fl.common.parameters_to_ndarrays(
                 self.aggregated_parameters)
-            model = models.get_model(unit_size=self.conf['unit_size'], conf=self.conf)
-            model.compile(optimizer=models.get_optimizer(),
-                          loss=models.get_loss())
-            model.set_weights(aggregated_weights)
-            model.save(save_path)
+            model = models.init_model(self.conf['unit_size'], conf=self.conf, weights=aggregated_weights) 
+            models.save_model(model, save_path)
         if rnd%10==0:
             # save every 10th
             save_path = os.path.join(self.conf['paths']['models'],
@@ -137,11 +134,8 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             log(INFO, "Saving model to %s", save_path)
             aggregated_weights = fl.common.parameters_to_ndarrays(
                 self.aggregated_parameters)
-            model = models.get_model(unit_size=self.conf['unit_size'], conf=self.conf)
-            model.compile(optimizer=models.get_optimizer(),
-                          loss=models.get_loss())
-            model.set_weights(aggregated_weights)
-            model.save(save_path)
+            model = models.init_model(self.conf['unit_size'], conf=self.conf, weights=aggregated_weights) 
+            models.save_model(model, save_path)
         if rnd <self.conf['rounds'] and rnd>=(self.conf['rounds']-self.conf['save_last_clients']):
             # for client analysis
             save_path = os.path.join(self.conf['paths']['models'],
@@ -150,11 +144,8 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             log(INFO, "Saving model to %s", save_path)
             aggregated_weights = fl.common.parameters_to_ndarrays(
                 self.aggregated_parameters)
-            model = models.get_model(unit_size=self.conf['unit_size'], conf=self.conf)
-            model.compile(optimizer=models.get_optimizer(),
-                          loss=models.get_loss())
-            model.set_weights(aggregated_weights)
-            model.save(save_path)            
+            model = models.init_model(self.conf['unit_size'], conf=self.conf, weights=aggregated_weights) 
+            models.save_model(model, save_path)          
         if rnd == self.conf['rounds']:
             # end of training calls
             save_path = os.path.join(self.conf['paths']['models'],
@@ -163,10 +154,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             log(INFO, "Saving model to %s", save_path)
             aggregated_weights = fl.common.parameters_to_ndarrays(
                 self.aggregated_parameters)
-            model = models.get_model(unit_size=self.conf['unit_size'], conf=self.conf)
-            model.compile(optimizer=models.get_optimizer(),
-                          loss=models.get_loss())
-            model.set_weights(aggregated_weights)
-            model.save(save_path)
+            model = models.init_model(self.conf['unit_size'], conf=self.conf, weights=aggregated_weights) 
+            models.save_model(model, save_path)
         return aggregated_result
 

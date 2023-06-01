@@ -3,7 +3,6 @@ import tensorflow_datasets as tfds
 import tensorflow as tf
 import os
 
-from src.utils import get_np_from_tfds
 
 
 def dirichlet_split(num_classes, num_clients, dirichlet_alpha=1.0, mode="classes", seed=None):
@@ -124,6 +123,15 @@ def get_mia_datasets_client_balanced(X_split, Y_split, X_test, Y_test, n_attacke
     }
 
     return ret    
+
+
+def get_np_from_ds(ds):
+    X = []
+    Y = []
+    for x,y in ds.as_numpy_iterator():
+        X.append(x)
+        Y.append(y)
+    return np.array(X), np.array(Y)
     
 def get_mia_datasets(train_ds, test_ds, n_attacker_knowledge=100, n_attack_sample=5000, seed=None):
     """Get attacker training data knowledge 
@@ -135,10 +143,10 @@ def get_mia_datasets(train_ds, test_ds, n_attacker_knowledge=100, n_attack_sampl
     test_from_test_ds = test_ds.shuffle(10000, seed=seed).take(n_attack_sample)
     test_from_train_ds = train_ds.shuffle(50000, seed=seed).take(n_attack_sample)
 
-    x_train_attacker, y_train_attacker = get_np_from_tfds(train_ds_attacker)
-    x_test_attacker, y_test_attacker = get_np_from_tfds(test_ds_attacker)
-    x_test_test, y_test_test = get_np_from_tfds(test_from_test_ds)
-    x_test_train, y_test_train = get_np_from_tfds(test_from_train_ds)
+    x_train_attacker, y_train_attacker = get_np_from_ds(train_ds_attacker)
+    x_test_attacker, y_test_attacker = get_np_from_ds(test_ds_attacker)
+    x_test_test, y_test_test = get_np_from_ds(test_from_test_ds)
+    x_test_train, y_test_train = get_np_from_ds(test_from_train_ds)
     
     real_n_attack_sample = min(len(y_test_test),len(y_test_train),n_attack_sample)
     x_test_test = x_test_test[:real_n_attack_sample]
@@ -185,7 +193,15 @@ def preprocess_ds(image, label, conf):
     return image, label
 
 
-def load_and_preprocess(dataset_mode="cifar10", input_shape=(32,32,3), val_split=True, norm=False, conf={}):
+def preprocess_data(data, conf, shuffle=False):
+    data = data.map(lambda x,y: preprocess_ds(x,y,conf)) 
+    if shuffle:
+        data = data.shuffle(5000)
+    data = data.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE)
+    return data
+
+
+def load_data(dataset_mode="cifar10", input_shape=(32,32,3), val_split=True, norm=False, conf={}):
         
     if 'val_split' in conf.keys():
         val_split = conf['val_split']
@@ -198,3 +214,6 @@ def load_and_preprocess(dataset_mode="cifar10", input_shape=(32,32,3), val_split
     
     return train_ds, val_ds, test_ds
 
+
+def ds_from_numpy(data):
+    return tf.data.Dataset.from_tensor_slices(data)

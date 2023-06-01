@@ -2,10 +2,8 @@ import flwr as fl
 from flwr.common.logger import log
 from logging import ERROR, INFO
 import numpy as np
-import tensorflow as tf
 import os
-
-from src import models, ma_utils, data_preparation, augmentation
+from src import model_aggregation, models, data_preparation, augmentation, utils
 
 class FlowerClient(fl.client.NumPyClient):
     """Client implementation using Flower federated learning framework"""
@@ -16,58 +14,47 @@ class FlowerClient(fl.client.NumPyClient):
     
     def init_model(self):
         self.calculate_unit_size()
-        model = models.get_model(unit_size=self.conf['local_unit_size'], static_bn=True, conf=self.conf)
-        model.compile(optimizer=models.get_optimizer(learning_rate=self.conf['learning_rate']),
-                      loss=models.get_loss(),
-                      metrics=['sparse_categorical_accuracy'])
+        model = models.init_model(self.conf["local_unit_size"], conf=self.conf, model_path=None, static_bn=True)
         self.model = model
     
     def calculate_unit_size(self):
-        self.conf['local_unit_size'] = models.calculate_unit_size(self.cid, self.conf, self.len_train_data)
+        self.conf['local_unit_size'] = utils.calculate_unit_size(self.cid, self.conf, self.len_train_data)
     
     def load_data(self, X, Y, X_test, Y_test):
         self.train_len = len(X)
         self.test_len = len(X_test) 
-        self.train_ds = tf.data.Dataset.from_tensor_slices((X,Y))
-        self.test_ds = tf.data.Dataset.from_tensor_slices((X_test,Y_test))
+        self.train_data = (X,Y)
+        self.test_data = (X_test,Y_test)
         self.len_train_data = len(X)
   
     def get_parameters(self, config):
-        return self.model.get_weights()
+        return models.get_weights(self.model)
 
     def set_parameters(self, weights, config):
         """set weights either as a simple update or model agnostic way"""
         if self.conf["ma_mode"] == "heterofl":
-            cp_weights = ma_utils.crop_weights(weights, self.model.get_weights())
-            self.model.set_weights(cp_weights)
+            cp_weights = model_aggregation.crop_weights(weights, models.get_weights(self.model))
+            models.set_weights(self.model, cp_weights)
         elif self.conf['ma_mode'] == 'rm-cid':
             if 'round_seed' in config.keys() and self.conf['permutate_cuts']:
-                rand = ma_utils.get_random_permutation(self.cid, self.conf['num_clients'], config['round_seed'])
+                rand = utils.get_random_permutation(self.cid, self.conf['num_clients'], config['round_seed'])
             else:
                 rand = self.cid
-            cp_weights = ma_utils.crop_weights(weights, self.model.get_weights(), conf=self.conf, rand=rand)
-            self.model.set_weights(cp_weights)
+            cp_weights = model_aggregation.crop_weights(weights, models.get_weights(self.model), conf=self.conf, rand=rand)
+            models.set_weights(self.model, cp_weights)
         else:
-            self.model.set_weights(weights)
-            
-    def save_model(self, path):
-        self.model.save_weights(path)
-        #saver = models.get_model(unit_size=self.conf['local_unit_size'], conf=self.conf)
-        #saver.compile(optimizer=models.get_optimizer(learning_rate=self.conf['learning_rate']),
-        #              loss=models.get_loss(),
-        #              metrics=['sparse_categorical_accuracy'])
-        #saver.set_weights(self.model.get_weights()) 
-        #saver.save_weights(path)      
+            models.set_weights(self.model, weights)
+              
 
     def fit(self, weights, config):
         """Flower fit passing updated weights, data size and additional params in a dict"""
         try:
             self.set_parameters(weights, config)
             
-            train_ds = self.train_ds.map(lambda x,y: data_preparation.preprocess_ds(x,y,self.conf))
+            train_ds = data_preparation.ds_from_numpy(self.train_data)
             if self.conf["aug"]:
                 train_ds = train_ds.map(lambda x,y: augmentation.aug_ds(x,y,self.conf))
-            train_ds = train_ds.shuffle(5000).batch(self.conf['batch_size']).prefetch(tf.data.AUTOTUNE)
+            train_ds = data_preparation.preprocess_data(train_ds, conf=self.conf, shuffle=True)
             
             if self.conf['save_last_clients']>0 and config['round']>self.conf['rounds']-self.conf['save_last_clients']:
                 # save client models in last rounds
@@ -76,13 +63,9 @@ class FlowerClient(fl.client.NumPyClient):
                                          "clients",
                                          str(self.cid),
                                          f'saved_model_pre_{str(config["round"])}')
-                self.save_model(save_path)
-                
-            history = self.model.fit(
-                train_ds,
-                epochs=self.conf['epochs'],
-                verbose=0
-            )
+                models.save_model(self.model, save_path)
+
+            history = models.fit(self.model, train_ds, self.conf)    
 
             if np.isnan(history.history['loss'][-1]): # or np.isnan(history.history['val_loss'][-1]):
                 raise ValueError("Warning, client has NaN loss")
@@ -95,9 +78,9 @@ class FlowerClient(fl.client.NumPyClient):
             client_weight = self.train_len if self.conf['weight_clients'] else 1
             
             if self.conf["hide_layers"] == "no":
-                trained_weights = self.model.get_weights()
+                trained_weights = models.get_weights(self.model)
             elif self.conf["hide_layers"] == "yes":
-                trained_weights = self.model.get_weights()
+                trained_weights = models.get_weights(self.model)
                 total_rows = len(trained_weights)
                 r = np.random.randint(total_rows)
                 trained_weights[r] = weights[r]
@@ -114,7 +97,8 @@ class FlowerClient(fl.client.NumPyClient):
                                          "clients",
                                          str(self.cid),
                                          f'saved_model_post_{str(config["round"])}')
-                self.save_model(save_path)                
+                models.save_model(self.model, save_path)
+              
                 
         except Exception as e:
             log(
@@ -122,7 +106,7 @@ class FlowerClient(fl.client.NumPyClient):
                 "Client error: %s",
                 str(e),
             )
-            raise Error("Client training terminated unexpectedly")
+            raise RuntimeError("Client training terminated unexpectedly")
 
         
         return trained_weights, client_weight, shared_metrics
@@ -130,18 +114,16 @@ class FlowerClient(fl.client.NumPyClient):
     def evaluate(self, weights, config):
         try:
             self.set_parameters(weights, config)
-            test_ds = self.test_ds.map(lambda x,y: data_preparation.preprocess_ds(x,y,self.conf))
-            test_ds = test_ds.batch(self.conf['batch_size']).prefetch(tf.data.AUTOTUNE)
+            test_ds = data_preparation.ds_from_numpy(self.test_data)
+            test_ds = data_preparation.preprocess_data(test_ds, self.conf)
             
             # Local model eval
-            loss, local_accuracy = self.model.evaluate(test_ds, verbose=0)
+            loss, local_accuracy = models.evaluate(self.model, test_ds, verbose=0)
             # Global model eval
-            g_model = models.get_model(unit_size=self.conf['unit_size'], conf=self.conf)
-            g_model.set_weights(weights)
-            g_model.compile(optimizer=models.get_optimizer(learning_rate=self.conf['learning_rate']),
-                      loss=models.get_loss(),
-                      metrics=['sparse_categorical_accuracy'])                      
-            loss, accuracy = g_model.evaluate(test_ds, verbose=0)
+            test_ds = data_preparation.ds_from_numpy(self.test_data)
+            test_ds = data_preparation.preprocess_data(test_ds, self.conf)
+            g_model = models.init_model(self.conf['unit_size'], conf=self.conf, weights=weights)                
+            loss, accuracy = models.evaluate(g_model, test_ds, verbose=0)
             
             return loss, self.test_len, {"local_accuracy": local_accuracy, "accuracy": accuracy}
         except Exception as e:
@@ -150,5 +132,5 @@ class FlowerClient(fl.client.NumPyClient):
                 "Client error: %s",
                 str(e),
             )
-            raise Error("Client evaluate terminated unexpectedly")
+            raise RuntimeError("Client evaluate terminated unexpectedly")
 

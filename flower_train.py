@@ -54,25 +54,20 @@ def train(conf, train_ds=None):
         json.dump(conf, f, indent=4)
     
     if train_ds is None:
-        train_ds, _, _ = tfds.load('cifar10', split=['train[5%:]','train[:5%]','test'], as_supervised=True)
+        train_ds, _, _ = data_preparation.load_data(conf=conf)
         
-    X_train, Y_train = utils.get_np_from_tfds(train_ds)
+    X_train, Y_train = data_preparation.get_np_from_ds(train_ds)
     conf['len_total_data'] = len(X_train)
     X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf['num_clients'], split_mode=conf['split_mode'],
                                                    mode="clients", seed=conf['seed'], dirichlet_alpha=conf['dirichlet_alpha'])
 
-    initial_model = models.get_model(static_bn=True, unit_size=conf['unit_size'], conf=conf)
-    if conf["continue_from"] is not None:
-        print(f'load weights from checkpoint {conf["continue_from"]}')
-        initial_model.load_weights(conf["continue_from"])
-    initial_model.compile(optimizer=models.get_optimizer(),
-                  loss=models.get_loss(),
-                  metrics=["sparse_categorical_accuracy"])
-    print(initial_model.summary())
+    initial_model = models.init_model(unit_size=conf['unit_size'], static_bn=True, conf=conf, model_path=conf["continue_from"])
+    models.print_summary(initial_model)
+
     # Create FedAvg strategy
     strategy = SaveAndLogStrategy(
         conf=conf,
-        initial_parameters = ndarrays_to_parameters(initial_model.get_weights()), # avoid smaller models as init
+        initial_parameters = ndarrays_to_parameters(models.get_weights(initial_model)), # avoid smaller models as init
         fraction_fit=1.0,  # Sample 10% of available clients for training
         fraction_evaluate=0.000001,  # Sample 5% of available clients for evaluation
         min_fit_clients=1,  # Never sample less than 10 clients for training
@@ -107,11 +102,8 @@ def train(conf, train_ds=None):
         ray_init_args = conf['ray_init_args'],
         client_resources = conf['client_resources']
     )
-    model = models.get_model(unit_size=conf['unit_size'], conf=conf)
-    model.load_weights(os.path.join(conf['paths']['models'], conf['model_id'], "saved_model"))
-    model.compile(optimizer=models.get_optimizer(learning_rate=conf['learning_rate']),
-                  loss=models.get_loss(),
-                  metrics=["sparse_categorical_accuracy"])
+    model_path = os.path.join(conf['paths']['models'], conf['model_id'], "saved_model")
+    model = models.init_model(unit_size=conf['unit_size'], conf=conf, model_path=model_path)
     return model, conf
 
                                                   
@@ -127,10 +119,8 @@ if __name__ == "__main__":
     for k,v in conf_changes[0].items():
         conf[k]=v
 
-    import tensorflow as tf 
-    import tensorflow_datasets as tfds
-    train_ds, val_ds, test_ds = data_preparation.load_and_preprocess(conf=conf)
-    X_val, Y_val = utils.get_np_from_tfds(val_ds)
+    train_ds, val_ds, test_ds = data_preparation.load_data(conf=conf)
+    X_val, Y_val = data_preparation.get_np_from_ds(val_ds)
     
     f_name = datetime.now().strftime("%Y%m%d-%H%M%S")
     
@@ -145,6 +135,7 @@ if __name__ == "__main__":
         
         print("Training completed, model evaluation")
         # Evaluate
+
         results = metrics.evaluate(model_conf, model, train_ds, val_ds, test_ds)
         
         # Per client eval

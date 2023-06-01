@@ -1,29 +1,29 @@
 from tqdm import tqdm
 import numpy as np
-import tensorflow as tf 
-import tensorflow_datasets as tfds
-from src import utils, models, data_preparation, attacks
+from src import models, data_preparation, attacks, utils
 import os
 
 
 def evaluate(conf, model, train_ds=None, val_ds=None, test_ds=None, verbose=1):
     """Attack on server"""
     if train_ds is None:
-        train_ds, val_ds, test_ds = data_preparation.load_and_preprocess(conf=conf)
-    
-    train_ds = train_ds.map(lambda x,y: data_preparation.preprocess_ds(x,y,conf)) 
-    test_ds = test_ds.map(lambda x,y: data_preparation.preprocess_ds(x,y,conf))    
+        train_ds, val_ds, test_ds = data_preparation.load_data(conf=conf)
+
     r = data_preparation.get_mia_datasets(train_ds, test_ds,
                                           conf['n_attacker_knowledge'],
                                           conf['n_attack_sample'],
                                           conf['seed'])
-    train_performance = model.evaluate(train_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE), verbose=verbose) 
+
+    train_ds = data_preparation.preprocess_data(train_ds, conf)
+    val_ds = data_preparation.preprocess_data(val_ds, conf)
+    test_ds = data_preparation.preprocess_data(test_ds, conf)
+
+    train_performance = models.evaluate(model, train_ds, verbose=verbose)
     if val_ds is not None:
-        val_ds = val_ds.map(lambda x,y: data_preparation.preprocess_ds(x,y,conf)) 
-        val_performance = model.evaluate(val_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE), verbose=verbose) 
+        val_performance = models.evaluate(model, val_ds, verbose=verbose)
     else:
-        val_performance = [None] * len(train_performance)                                     
-    test_performance = model.evaluate(test_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE), verbose=verbose)
+        val_performance = [None] * len(train_performance)                  
+    test_performance = models.evaluate(model, test_ds, verbose=verbose)                   
     mia_preds = attacks.attack(model,
                               r['attacker_knowledge'], r['mia_data'],
                               models.get_loss(),
@@ -47,13 +47,17 @@ def evaluate(conf, model, train_ds=None, val_ds=None, test_ds=None, verbose=1):
 
 def attack_on_clients(conf, X_split=None, Y_split=None, train_ds=None, val_ds=None, test_ds=None):
     """Attack on client"""
-    if train_ds is None:
-        train_ds, val_ds, test_ds = data_preparation.load_and_preprocess(conf=conf)
-    if X_split is None:
-        X_train, Y_train = utils.get_np_from_tfds(train_ds)
-        conf['len_total_data'] = len(X_train)
-        X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf['num_clients'], split_mode=conf['split_mode'],
-                                                       mode="clients", seed=conf['seed'], dirichlet_alpha=conf['dirichlet_alpha'])
+    if train_ds is None or X_split is None:
+        train_ds, val_ds, test_ds = data_preparation.load_data(conf=conf)
+        if X_split is None:
+            X_train, Y_train = data_preparation.get_np_from_ds(train_ds)
+            conf['len_total_data'] = len(X_train)
+            X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf['num_clients'], split_mode=conf['split_mode'],
+                                                        mode="clients", seed=conf['seed'], dirichlet_alpha=conf['dirichlet_alpha'])
+        train_ds = data_preparation.preprocess_data(train_ds, conf)
+        val_ds = data_preparation.preprocess_data(val_ds, conf)
+        test_ds = data_preparation.preprocess_data(test_ds, conf)
+
     res = []
     for cid in tqdm(range(len(X_split))):
         model_root_path = conf['paths']['models']
@@ -61,14 +65,10 @@ def attack_on_clients(conf, X_split=None, Y_split=None, train_ds=None, val_ds=No
         last_epoch = str(conf['rounds'])
         epoch_id = "saved_model_post_"+last_epoch
         model_path = os.path.join(model_root_path, model_id, "clients", str(cid),epoch_id)
-        local_unit_size = models.calculate_unit_size(cid, conf, len(X_split[cid]))
+        local_unit_size = utils.calculate_unit_size(cid, conf, len(X_split[cid]))
         conf["local_unit_size"] = local_unit_size
-        model = models.get_model(unit_size=local_unit_size, conf=conf, keep_scaling=True) # maybe you need static_bn?
-        model.load_weights(model_path).expect_partial()
-        model.compile(optimizer=models.get_optimizer(learning_rate=conf['learning_rate']),
-                      loss=models.get_loss(),
-                      metrics=["sparse_categorical_accuracy"])
-        train_c_ds = tf.data.Dataset.from_tensor_slices((X_split[cid],Y_split[cid]))
+        model = models.init_model(unit_size=local_unit_size, conf=conf, model_path=model_path, keep_scaling=True)
+        train_c_ds = data_preparation.ds_from_numpy((X_split[cid],Y_split[cid]))
         r = evaluate(conf, model, train_c_ds, val_ds, test_ds, verbose=0)
         r["cid"] = cid
         r["local_unit_size"] = local_unit_size
@@ -95,9 +95,11 @@ def evaluate_per_client(conf, model, X_split, Y_split, train_ds=None, val_ds=Non
     """Server model attack with client data"""
 
     if train_ds is None:
-        train_ds, val_ds, test_ds = data_preparation.load_and_preprocess(conf=conf)
-    test_ds = test_ds.map(lambda x,y: data_preparation.preprocess_ds(x,y,conf))  
-    X_test, Y_test = utils.get_np_from_tfds(test_ds)            
+        train_ds, val_ds, test_ds = data_preparation.load_data(conf=conf)
+    X_test, Y_test = data_preparation.get_np_from_ds(test_ds)   
+
+    test_ds = data_preparation.preprocess_data(test_ds, conf)
+
     r = data_preparation.get_mia_datasets_client_balanced(X_split, Y_split, X_test, Y_test,
                                           conf['n_attacker_knowledge'],
                                           conf['n_attack_sample'],
@@ -105,11 +107,10 @@ def evaluate_per_client(conf, model, X_split, Y_split, train_ds=None, val_ds=Non
     results = []
     for X_client, Y_client in tqdm(zip(X_split, Y_split), total=len(X_split)):
         c_res = {}
-        train_ds = tf.data.Dataset.from_tensor_slices((X_client,Y_client))
-        train_ds = train_ds.map(lambda x,y: data_preparation.preprocess_ds(x,y,conf))
-        train_ds = train_ds.batch(conf['batch_size']).prefetch(tf.data.AUTOTUNE)
+        train_c_ds = data_preparation.ds_from_numpy((X_client,Y_client))
+        train_c_ds = data_preparation.preprocess_data(train_c_ds, conf)
         
-        train_performance = model.evaluate(train_ds, verbose=0)
+        train_performance = models.evaluate(model, train_c_ds, verbose=0)  
         c_res['train_acc'] = train_performance[1]
         
         len_data = min(len(X_client), len(X_test))

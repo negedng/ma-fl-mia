@@ -1,5 +1,5 @@
 import tensorflow as tf
-from src.models.scaler import Scaler
+from src.models.tensorflow_models.scaler import Scaler
 
 def get_scaler(use_scaler, scaler_rate, keep_scaling, name=None):
     """Get scaler from config params"""

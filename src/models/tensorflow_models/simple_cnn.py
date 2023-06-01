@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
-from src.models.layer_utils import get_scaler, get_norm
+from src.models.tensorflow_models.layer_utils import get_scaler, get_norm
 
 
 def simple_CNN(unit_size, num_classes=10, input_shape=(32,32,3), static_bn=False):

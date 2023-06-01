@@ -3,8 +3,6 @@ from datetime import datetime
 import os
 import numpy as np
 import json
-import tensorflow as tf 
-import tensorflow_datasets as tfds
 
 from src import utils, models, data_preparation, attacks, metrics
 
@@ -14,8 +12,8 @@ def test(model_path, overwrite=False):
     conf = utils.load_config(config_path=config_path)
     conf['paths']['models']
     print(conf)
-    train_ds, val_ds, test_ds = data_preparation.load_and_preprocess(conf=conf)
-    X_train, Y_train = utils.get_np_from_tfds(train_ds)
+    train_ds, val_ds, test_ds = data_preparation.load_data(conf=conf)
+    X_train, Y_train = data_preparation.get_np_from_ds(train_ds)
     conf['len_total_data'] = len(X_train)        
     if 'split_mode' not in conf.keys():
         split_mode='dirichlet'
@@ -24,15 +22,14 @@ def test(model_path, overwrite=False):
     X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf['num_clients'], split_mode=split_mode,
                                                    mode="clients", seed=conf['seed'], dirichlet_alpha=conf['dirichlet_alpha'])
     
+
+
     if os.path.exists(os.path.join(model_path,'saved_model')):
         weights_path = os.path.join(model_path,'saved_model')
     else:
-        weights_path = os.path.join(model_path,'saved_model_best')        
-    model = models.get_model(unit_size=conf['unit_size'], conf=conf)
-    model.load_weights(os.path.join(weights_path)).expect_partial()
-    model.compile(optimizer=models.get_optimizer(),
-                  loss=models.get_loss(),
-                  metrics=["accuracy"])
+        weights_path = os.path.join(model_path,'saved_model_best')  
+
+    model = models.init_model(unit_size=conf['unit_size'], conf=conf, model_path=weights_path)      
     
     print(f'Testing model {model_path}')
     # Evaluate
@@ -59,8 +56,8 @@ def test_all(model_path):
     config_path = os.path.join(model_path, 'config.json')
     conf = utils.load_config(env_path=None, config_path=config_path)
     print(conf)
-    train_ds, val_ds, test_ds = data_preparation.load_and_preprocess(dataset_mode="cifar10", conf=conf)
-    X_train, Y_train = utils.get_np_from_tfds(train_ds)
+    train_ds, val_ds, test_ds = data_preparation.load_data(dataset_mode="cifar10", conf=conf)
+    X_train, Y_train = data_preparation.get_np_from_ds(train_ds)
     conf['len_total_data'] = len(X_train)        
     if 'split_mode' not in conf.keys():
         split_mode='dirichlet'
@@ -69,6 +66,7 @@ def test_all(model_path):
     X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf['num_clients'], split_mode=split_mode,
                                                    mode="clients", seed=conf['seed'], dirichlet_alpha=conf['dirichlet_alpha'])
     
+
     subfolders = [ f.path for f in os.scandir(model_path) if f.is_dir() ]
     res = {}
     for weights_path in subfolders:
@@ -76,11 +74,7 @@ def test_all(model_path):
             continue
         idx = os.path.basename(weights_path)     
         res[idx] = {} 
-        model = models.get_model(unit_size=conf['unit_size'], conf=conf)
-        model.load_weights(os.path.join(weights_path))
-        model.compile(optimizer=models.get_optimizer(),
-                      loss=models.get_loss(),
-                      metrics=["accuracy"])
+        model = models.init_model(unit_size=conf['unit_size'], conf=conf, model_path=weights_path)
         
         print(f'Testing model {weights_path}')
         # Evaluate

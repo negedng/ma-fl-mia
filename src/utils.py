@@ -1,6 +1,5 @@
 import numpy as np
 import os
-from tqdm import tqdm
 import json
 
 
@@ -14,15 +13,6 @@ def generalized_positional_notation(N, l):
     ret[0] = quo
     return ret
     
-
-def get_np_from_tfds(ds):
-    X = []
-    Y = []
-    for x,y in ds.as_numpy_iterator():
-        X.append(x)
-        Y.append(y)
-    return np.array(X), np.array(Y)
-
 
 def load_config(env_path='env.json', config_path='config.json'):
     """Check for an env root file"""
@@ -41,23 +31,6 @@ def load_config(env_path='env.json', config_path='config.json'):
     return config
 
 
-def predict_losses(model, X, Y, loss_function, verbose=0.5):
-    """Predict on model but returns with each individual loss"""
-    losses = []
-    
-    p_verbose = 1.0 if verbose>0.75 else 0.0
-    Y_pred = model.predict(X, verbose=p_verbose)
-    
-    iterator = zip(Y, Y_pred)
-    if verbose>0.1:
-        iterator = tqdm(iterator, total=len(Y))
-    
-    for y, y_pred in iterator:
-        l = loss_function(y, y_pred)
-        losses.append(l.numpy())
-    return np.array(losses)
-
-
 def select_n(X_train, Y_train, n):
     indexes = np.array([], dtype=int)
     classes = np.unique(Y_train)
@@ -65,3 +38,57 @@ def select_n(X_train, Y_train, n):
     for c in classes:
         indexes = np.append(indexes, np.argwhere(Y_train==c)[:n_cls])
     return X_train[indexes], Y_train[indexes]
+
+
+def select_n_index(n, total_len, seed=None):
+    return np.random.RandomState(seed=seed).permutation(total_len)[:n]
+
+
+def get_random_permutation(cid, total_clients, seed):
+    return  np.random.RandomState(seed=seed).permutation(total_clients)[cid]
+
+def calculate_unit_size(cid, conf, len_train_data):
+    if conf['ma_mode']=='heterofl':
+        if conf['scale_mode']=='standard':
+            if len_train_data > 2500:
+                unit_size = conf['unit_size']
+            elif len_train_data > 1250:
+                unit_size = conf['unit_size'] // 2
+            elif len_train_data >750:
+                unit_size = conf['unit_size'] // 4
+            else:
+                unit_size = conf['unit_size'] // 8
+        elif conf['scale_mode']=='basic':
+            if len_train_data > 2500:
+                unit_size = conf['unit_size']
+            else:
+                unit_size = conf['unit_size'] // 2
+        elif conf["scale_mode"]=="1250":
+            if len_train_data > 1250:
+                unit_size = conf['unit_size']
+            else:
+                unit_size = conf['unit_size'] // 2
+        elif conf["scale_mode"]=='no':
+            unit_size = conf['unit_size']
+        else:
+            raise ValueError('scale mode not recognized{conf["scale_mode"]}')
+    elif conf['ma_mode'] == 'rm-cid':
+        if type(conf['scale_mode'])==float and conf['scale_mode']<=1.0:
+            unit_size = int(conf['unit_size'] * conf['scale_mode'])
+        elif type(conf['scale_mode'])==int and conf['scale_mode']<0:
+            unit_size = conf['unit_size'] + conf['scale_mode']
+        elif conf['scale_mode']=='basic':
+            unit_size = conf['unit_size'] - 1
+        elif conf['scale_mode']=='long':
+            if int(cid) in [0,1,2,5,6,7]:
+                unit_size = conf['unit_size']-1
+            else:
+                unit_size = conf['unit_size']*0.75
+        else:
+            raise ValueError('scale mode not recognized{conf["scale_mode"]}')
+    elif conf['ma_mode']=='no':
+        unit_size = conf['unit_size']
+    else:
+        raise ValueError('model agnostic mode not recognized{conf["ma_mode"]}')
+    return unit_size
+

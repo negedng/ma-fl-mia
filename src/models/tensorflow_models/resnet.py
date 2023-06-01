@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
-from src.models.layer_utils import get_scaler, get_norm
+from src.models.tensorflow_models.layer_utils import get_scaler, get_norm
 
 kaiming_normal = tf.keras.initializers.VarianceScaling(scale=2.0, mode='fan_out', distribution='untruncated_normal')
 
@@ -49,7 +49,7 @@ def make_layer(x, planes, blocks, stride=1, name=None, use_scaler=False, scaler_
 
 def resnet(blocks_per_layer, unit_size=64, num_classes=10, input_shape=(32,32,3), use_scaler=True, model_rate=1.0, keep_scaling=False, norm_mode="bn", static_bn=False):
 
-    
+    #!TODO: there is a problem with scaling
     scaler_rate = model_rate
 
     inputs = tf.keras.Input(shape=input_shape)

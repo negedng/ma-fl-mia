@@ -1,10 +1,7 @@
 import numpy as np
 import itertools
 from src import utils
-
-def get_random_permutation(cid, total_clients, seed):
-    return  np.random.RandomState(seed=seed).permutation(total_clients)[cid]
-
+from src.utils import get_random_permutation
 
 def cut_idx(max_shape, this_shape, dim, conf, rand):
     if conf['cut_type']=='rand':
