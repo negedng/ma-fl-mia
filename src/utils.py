@@ -31,7 +31,7 @@ def load_config(env_path='env.json', config_path='config.json'):
     return config
 
 
-def select_n(X_train, Y_train, n):
+def select_n_from_each_class(X_train, Y_train, n):
     indexes = np.array([], dtype=int)
     classes = np.unique(Y_train)
     n_cls = n // len(classes)
