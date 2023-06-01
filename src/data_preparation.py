@@ -126,12 +126,18 @@ def get_mia_datasets_client_balanced(X_split, Y_split, X_test, Y_test, n_attacke
 
 
 def get_np_from_ds(ds):
+    try:
+        ds = ds.unbatch()
+    except ValueError:
+        # already unbatched
+        pass
     X = []
     Y = []
     for x,y in ds.as_numpy_iterator():
         X.append(x)
         Y.append(y)
     return np.array(X), np.array(Y)
+    
     
 def get_mia_datasets(train_ds, test_ds, n_attacker_knowledge=100, n_attack_sample=5000, seed=None):
     """Get attacker training data knowledge 
