@@ -4,7 +4,9 @@ import os
 import numpy as np
 import json
 
-from src import utils, models, data_preparation, attacks, metrics
+from src import utils, models, attacks, metrics
+from src.datasets import data_allocation
+from src import datasets
 
 def test(model_path, overwrite=False):
     
@@ -12,17 +14,17 @@ def test(model_path, overwrite=False):
     conf = utils.load_config(config_path=config_path)
     conf['paths']['models']
     print(conf)
-    train_ds, val_ds, test_ds = data_preparation.load_data(conf=conf)
-    X_train, Y_train = data_preparation.get_np_from_ds(train_ds)
-    train_ds = data_preparation.preprocess_data(train_ds, conf)
-    val_ds = data_preparation.preprocess_data(val_ds, conf, cache=True)
-    test_ds = data_preparation.preprocess_data(test_ds, conf, cache=True)   
+    train_ds, val_ds, test_ds = datasets.load_data(conf=conf)
+    X_train, Y_train = datasets.get_np_from_ds(train_ds)
+    train_ds = datasets.preprocess_data(train_ds, conf)
+    val_ds = datasets.preprocess_data(val_ds, conf, cache=True)
+    test_ds = datasets.preprocess_data(test_ds, conf, cache=True)   
     conf['len_total_data'] = len(X_train)        
     if 'split_mode' not in conf.keys():
         split_mode='dirichlet'
     else:
         split_mode=conf['split_mode']
-    X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf['num_clients'], split_mode=split_mode,
+    X_split, Y_split = data_allocation.split_data(X_train, Y_train, conf['num_clients'], split_mode=split_mode,
                                                    mode="clients", seed=conf['seed'], dirichlet_alpha=conf['dirichlet_alpha'])
     
 
@@ -59,17 +61,17 @@ def test_all(model_path):
     config_path = os.path.join(model_path, 'config.json')
     conf = utils.load_config(env_path=None, config_path=config_path)
     print(conf)
-    train_ds, val_ds, test_ds = data_preparation.load_data(dataset_mode="cifar10", conf=conf)
-    X_train, Y_train = data_preparation.get_np_from_ds(train_ds)
-    train_ds = data_preparation.preprocess_data(train_ds, conf)
-    val_ds = data_preparation.preprocess_data(val_ds, conf, cache=True)
-    test_ds = data_preparation.preprocess_data(test_ds, conf, cache=True)      
+    train_ds, val_ds, test_ds = datasets.load_data(dataset_mode="cifar10", conf=conf)
+    X_train, Y_train = datasets.get_np_from_ds(train_ds)
+    train_ds = datasets.preprocess_data(train_ds, conf)
+    val_ds = datasets.preprocess_data(val_ds, conf, cache=True)
+    test_ds = datasets.preprocess_data(test_ds, conf, cache=True)      
     conf['len_total_data'] = len(X_train)        
     if 'split_mode' not in conf.keys():
         split_mode='dirichlet'
     else:
         split_mode=conf['split_mode']
-    X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf['num_clients'], split_mode=split_mode,
+    X_split, Y_split = data_allocation.split_data(X_train, Y_train, conf['num_clients'], split_mode=split_mode,
                                                    mode="clients", seed=conf['seed'], dirichlet_alpha=conf['dirichlet_alpha'])
     
 

@@ -1,17 +1,20 @@
 from tqdm import tqdm
 import numpy as np
-from src import models, data_preparation, attacks, utils
+from src import models, attacks, utils
 import os
+
+from src.datasets import data_allocation
+from src import datasets
 
 
 def evaluate(conf, model, train_ds=None, val_ds=None, test_ds=None, verbose=1):
     """Attack on server"""
     if train_ds is None:
-        train_ds, val_ds, test_ds = data_preparation.load_data(conf=conf)
+        train_ds, val_ds, test_ds = datasets.load_data(conf=conf)
 
-    train_data = data_preparation.get_np_from_ds(train_ds)
-    test_data = data_preparation.get_np_from_ds(test_ds)
-    r = data_preparation.get_mia_datasets(train_data, test_data,
+    train_data = datasets.get_np_from_ds(train_ds)
+    test_data = datasets.get_np_from_ds(test_ds)
+    r = data_allocation.get_mia_datasets(train_data, test_data,
                                           conf['n_attacker_knowledge'],
                                           conf['n_attack_sample'],
                                           conf['seed'])
@@ -46,15 +49,15 @@ def evaluate(conf, model, train_ds=None, val_ds=None, test_ds=None, verbose=1):
 def attack_on_clients(conf, X_split=None, Y_split=None, train_ds=None, val_ds=None, test_ds=None):
     """Attack on client"""
     if train_ds is None or X_split is None:
-        train_ds, val_ds, test_ds = data_preparation.load_data(conf=conf)
+        train_ds, val_ds, test_ds = datasets.load_data(conf=conf)
         if X_split is None:
-            X_train, Y_train = data_preparation.get_np_from_ds(train_ds)
+            X_train, Y_train = datasets.get_np_from_ds(train_ds)
             conf['len_total_data'] = len(X_train)
-            X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf['num_clients'], split_mode=conf['split_mode'],
+            X_split, Y_split = data_allocation.split_data(X_train, Y_train, conf['num_clients'], split_mode=conf['split_mode'],
                                                         mode="clients", seed=conf['seed'], dirichlet_alpha=conf['dirichlet_alpha'])
-        train_ds = data_preparation.preprocess_data(train_ds, conf)
-        val_ds = data_preparation.preprocess_data(val_ds, conf)
-        test_ds = data_preparation.preprocess_data(test_ds, conf)
+        train_ds = datasets.preprocess_data(train_ds, conf)
+        val_ds = datasets.preprocess_data(val_ds, conf)
+        test_ds = datasets.preprocess_data(test_ds, conf)
 
     res = []
     for cid in tqdm(range(len(X_split))):
@@ -66,8 +69,8 @@ def attack_on_clients(conf, X_split=None, Y_split=None, train_ds=None, val_ds=No
         local_unit_size = utils.calculate_unit_size(cid, conf, len(X_split[cid]))
         conf["local_unit_size"] = local_unit_size
         model = models.init_model(unit_size=local_unit_size, conf=conf, model_path=model_path, keep_scaling=True)
-        train_c_ds = data_preparation.get_ds_from_np((X_split[cid],Y_split[cid]))
-        train_c_ds = data_preparation.preprocess_data(train_c_ds, conf=conf)
+        train_c_ds = datasets.get_ds_from_np((X_split[cid],Y_split[cid]))
+        train_c_ds = datasets.preprocess_data(train_c_ds, conf=conf)
         r = evaluate(conf, model, train_c_ds, val_ds, test_ds, verbose=0)
         r["cid"] = cid
         r["local_unit_size"] = local_unit_size
@@ -94,20 +97,20 @@ def evaluate_per_client(conf, model, X_split, Y_split, train_ds=None, val_ds=Non
     """Server model attack with client data"""
 
     if train_ds is None:
-        train_ds, val_ds, test_ds = data_preparation.load_data(conf=conf)
-    X_test, Y_test = data_preparation.get_np_from_ds(test_ds)   
+        train_ds, val_ds, test_ds = datasets.load_data(conf=conf)
+    X_test, Y_test = datasets.get_np_from_ds(test_ds)   
 
-    test_ds = data_preparation.preprocess_data(test_ds, conf)
+    test_ds = datasets.preprocess_data(test_ds, conf)
 
-    r = data_preparation.get_mia_datasets_client_balanced(X_split, Y_split, X_test, Y_test,
+    r = data_allocation.get_mia_datasets_client_balanced(X_split, Y_split, X_test, Y_test,
                                           conf['n_attacker_knowledge'],
                                           conf['n_attack_sample'],
                                           conf['seed'])
     results = []
     for X_client, Y_client in tqdm(zip(X_split, Y_split), total=len(X_split)):
         c_res = {}
-        train_c_ds = data_preparation.get_ds_from_np((X_client,Y_client))
-        train_c_ds = data_preparation.preprocess_data(train_c_ds, conf)
+        train_c_ds = datasets.get_ds_from_np((X_client,Y_client))
+        train_c_ds = datasets.preprocess_data(train_c_ds, conf)
         
         train_performance = models.evaluate(model, train_c_ds, verbose=0)  
         c_res['train_acc'] = train_performance[1]

@@ -9,9 +9,11 @@ import numpy as np
 import json
 import copy
 
+from src.datasets import data_allocation
+from src import datasets
 from src.flower_client import FlowerClient
 from src.flower_strategy import SaveAndLogStrategy
-from src import utils, models, data_preparation, attacks, metrics
+from src import utils, models, attacks, metrics
 from exp import setups
 
 # DP wrappers
@@ -54,11 +56,11 @@ def train(conf, train_ds=None):
         json.dump(conf, f, indent=4)
     
     if train_ds is None:
-        train_ds, _, _ = data_preparation.load_data(conf=conf)
+        train_ds, _, _ = datasets.load_data(conf=conf)
         
-    X_train, Y_train = data_preparation.get_np_from_ds(train_ds)
+    X_train, Y_train = datasets.get_np_from_ds(train_ds)
     conf['len_total_data'] = len(X_train)
-    X_split, Y_split = data_preparation.split_data(X_train, Y_train, conf['num_clients'], split_mode=conf['split_mode'],
+    X_split, Y_split = data_allocation.split_data(X_train, Y_train, conf['num_clients'], split_mode=conf['split_mode'],
                                                    mode="clients", seed=conf['seed'], dirichlet_alpha=conf['dirichlet_alpha'])
 
     initial_model = models.init_model(unit_size=conf['unit_size'], static_bn=True, conf=conf, model_path=conf["continue_from"])
@@ -119,8 +121,8 @@ if __name__ == "__main__":
     for k,v in conf_changes[0].items():
         conf[k]=v
 
-    train_ds, val_ds, test_ds = data_preparation.load_data(conf=conf)
-    X_val, Y_val = data_preparation.get_np_from_ds(val_ds)
+    train_ds, val_ds, test_ds = datasets.load_data(conf=conf)
+    X_val, Y_val = datasets.get_np_from_ds(val_ds)
     
     f_name = datetime.now().strftime("%Y%m%d-%H%M%S")
     
@@ -135,9 +137,9 @@ if __name__ == "__main__":
         
         print("Training completed, model evaluation")
         # Evaluate
-        train_ds = data_preparation.preprocess_data(train_ds, conf)
-        val_ds = data_preparation.preprocess_data(val_ds, conf, cache=True)
-        test_ds = data_preparation.preprocess_data(test_ds, conf, cache=True)
+        train_ds = datasets.preprocess_data(train_ds, conf)
+        val_ds = datasets.preprocess_data(val_ds, conf, cache=True)
+        test_ds = datasets.preprocess_data(test_ds, conf, cache=True)
         
         results = metrics.evaluate(model_conf, model, train_ds, val_ds, test_ds)
         

@@ -1,7 +1,6 @@
 import numpy as np
 import itertools
 from src import utils
-from src.utils import get_random_permutation
 
 def cut_idx(max_shape, this_shape, dim, conf, rand):
     if conf['cut_type']=='rand':
@@ -219,7 +218,7 @@ def aggregate_rmcid(results, cids, total_model_shapes, server_round, total_clien
     num_examples_total = sum(num_examples_list)
     
     
-    rands = [get_random_permutation(cid, total_clients, server_round) for cid in cids]
+    rands = [utils.get_random_permutation(cid, total_clients, server_round) for cid in cids]
 
     # Create a list of weights, each multiplied by the related number of examples
     weighted_weights = [
