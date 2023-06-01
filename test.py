@@ -14,6 +14,9 @@ def test(model_path, overwrite=False):
     print(conf)
     train_ds, val_ds, test_ds = data_preparation.load_data(conf=conf)
     X_train, Y_train = data_preparation.get_np_from_ds(train_ds)
+    train_ds = data_preparation.preprocess_data(train_ds, conf)
+    val_ds = data_preparation.preprocess_data(val_ds, conf, cache=True)
+    test_ds = data_preparation.preprocess_data(test_ds, conf, cache=True)   
     conf['len_total_data'] = len(X_train)        
     if 'split_mode' not in conf.keys():
         split_mode='dirichlet'
@@ -58,6 +61,9 @@ def test_all(model_path):
     print(conf)
     train_ds, val_ds, test_ds = data_preparation.load_data(dataset_mode="cifar10", conf=conf)
     X_train, Y_train = data_preparation.get_np_from_ds(train_ds)
+    train_ds = data_preparation.preprocess_data(train_ds, conf)
+    val_ds = data_preparation.preprocess_data(val_ds, conf, cache=True)
+    test_ds = data_preparation.preprocess_data(test_ds, conf, cache=True)      
     conf['len_total_data'] = len(X_train)        
     if 'split_mode' not in conf.keys():
         split_mode='dirichlet'
