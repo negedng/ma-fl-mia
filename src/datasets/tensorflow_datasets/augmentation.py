@@ -24,3 +24,8 @@ def aug_ds(image, label, conf):
     if conf["aug_horizontal_flip"]:
         image = aug_horizontal_flip(image)
     return image, label
+
+
+def aug_data(data, conf):
+    data = data.map(lambda x, y: aug_ds(x, y, conf))
+    return data

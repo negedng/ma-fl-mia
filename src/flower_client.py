@@ -67,7 +67,7 @@ class FlowerClient(fl.client.NumPyClient):
 
             train_ds = datasets.get_ds_from_np(self.train_data)
             if self.conf["aug"]:
-                train_ds = train_ds.map(lambda x, y: datasets.aug_ds(x, y, self.conf))
+                train_ds = datasets.aug_data(train_ds, conf=self.conf)
             train_ds = datasets.preprocess_data(train_ds, conf=self.conf, shuffle=True)
 
             if (
