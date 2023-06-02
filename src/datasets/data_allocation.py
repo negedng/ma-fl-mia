@@ -1,61 +1,62 @@
 import numpy as np
 
 
-
-def dirichlet_split(num_classes, num_clients, dirichlet_alpha=1.0, mode="classes", seed=None):
-    """Dirichlet distribution of the data points, 
-    with mode 'classes', 1.0 is distributed between num_classes class, 
+def dirichlet_split(
+    num_classes, num_clients, dirichlet_alpha=1.0, mode="classes", seed=None
+):
+    """Dirichlet distribution of the data points,
+    with mode 'classes', 1.0 is distributed between num_classes class,
     with 'clients' it is distributed between num_clients clients"""
-    if mode=="classes":
+    if mode == "classes":
         a = num_classes
         b = num_clients
-    elif mode=="clients":
+    elif mode == "clients":
         a = num_clients
         b = num_classes
     else:
-        raise ValueError(f'unrecognized mode {mode}')
+        raise ValueError(f"unrecognized mode {mode}")
     if np.isscalar(dirichlet_alpha):
         dirichlet_alpha = np.repeat(dirichlet_alpha, a)
     split_norm = np.random.default_rng(seed).dirichlet(dirichlet_alpha, b)
     return split_norm
 
 
-def split_data(X, Y, num_clients, split=None, split_mode='dirichlet', *args, **kwargs):
+def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", *args, **kwargs):
     """Split data in X,Y between 'num_clients' number of clients"""
-    assert len(X)==len(Y)
+    assert len(X) == len(Y)
     classes = np.unique(Y)
     num_classes = len(classes)
 
     if split is None:
-        if split_mode=='dirichlet':
+        if split_mode == "dirichlet":
             split = dirichlet_split(num_classes, num_clients, *args, **kwargs)
-        elif split_mode=='binary':
+        elif split_mode == "binary":
             if num_clients == 20:
-                split = [4/50]*10 + [1/50]*10
+                split = [4 / 50] * 10 + [1 / 50] * 10
             elif num_clients == 10:
-                split = [9/50]*5 + [1/50]*5
-            split = [split]*10
+                split = [9 / 50] * 5 + [1 / 50] * 5
+            split = [split] * 10
             split = np.array(split)
-        elif split_mode=='homogen':
-            split = [1/num_clients]*num_clients
-            split = [split]*10
+        elif split_mode == "homogen":
+            split = [1 / num_clients] * num_clients
+            split = [split] * 10
             split = np.array(split)
         else:
-            ValueError(f'Split mode not recognized {split_mode}')
+            ValueError(f"Split mode not recognized {split_mode}")
     X_split = None
     Y_split = None
     idx_split = None
 
     for i, cls in enumerate(classes):
-        idx_cls = np.where(Y==cls)[0]
+        idx_cls = np.where(Y == cls)[0]
         cls_num_example = len(idx_cls)
-        cls_split = np.rint(split[i]*cls_num_example)
+        cls_split = np.rint(split[i] * cls_num_example)
 
         # if rounding error remove it from most populus one
-        if sum(cls_split)>cls_num_example:
+        if sum(cls_split) > cls_num_example:
             max_val = np.max(cls_split)
             max_idx = np.where(cls_split == max_val)[0][0]
-            cls_split[max_idx] -= sum(cls_split)-cls_num_example
+            cls_split[max_idx] -= sum(cls_split) - cls_num_example
         cls_split = cls_split.astype(int)
         idx_cls_split = np.split(idx_cls, np.cumsum(cls_split)[:-1])
         if idx_split is None:
@@ -63,8 +64,7 @@ def split_data(X, Y, num_clients, split=None, split_mode='dirichlet', *args, **k
 
         else:
             for i in range(len(idx_cls_split)):
-
-                idx_split[i] = np.concatenate([idx_split[i],idx_cls_split[i]], axis=0)
+                idx_split[i] = np.concatenate([idx_split[i], idx_cls_split[i]], axis=0)
 
     for i in range(len(idx_split)):
         idx_split[i] = np.sort(idx_split[i])
@@ -74,7 +74,15 @@ def split_data(X, Y, num_clients, split=None, split_mode='dirichlet', *args, **k
     return X_split, Y_split
 
 
-def get_mia_datasets_client_balanced(X_split, Y_split, X_test, Y_test, n_attacker_knowledge=100, n_attack_sample=5000, seed=None):
+def get_mia_datasets_client_balanced(
+    X_split,
+    Y_split,
+    X_test,
+    Y_test,
+    n_attacker_knowledge=100,
+    n_attack_sample=5000,
+    seed=None,
+):
     """Get attacker knowledge from train split-wise balanced"""
     no_clients = len(Y_split)
 
@@ -85,16 +93,24 @@ def get_mia_datasets_client_balanced(X_split, Y_split, X_test, Y_test, n_attacke
         p = np.random.RandomState(seed=seed).permutation(len(Y_split[i]))
         idx_train_attacker = p[:n_attacker_knowledge_cls]
         idx_test_train = p[-n_attack_sample_cls:]
-        if i==0:
+        if i == 0:
             x_train_attacker = X_split[i][idx_train_attacker]
             y_train_attacker = Y_split[i][idx_train_attacker]
             x_test_train = X_split[i][idx_test_train]
             y_test_train = Y_split[i][idx_test_train]
         else:
-            x_train_attacker = np.concatenate([x_train_attacker, X_split[i][idx_train_attacker]],axis=0)
-            y_train_attacker = np.concatenate([y_train_attacker, Y_split[i][idx_train_attacker]],axis=0)
-            x_test_train = np.concatenate([x_test_train, X_split[i][idx_test_train]],axis=0)
-            y_test_train = np.concatenate([y_test_train, Y_split[i][idx_test_train]],axis=0)
+            x_train_attacker = np.concatenate(
+                [x_train_attacker, X_split[i][idx_train_attacker]], axis=0
+            )
+            y_train_attacker = np.concatenate(
+                [y_train_attacker, Y_split[i][idx_train_attacker]], axis=0
+            )
+            x_test_train = np.concatenate(
+                [x_test_train, X_split[i][idx_test_train]], axis=0
+            )
+            y_test_train = np.concatenate(
+                [y_test_train, Y_split[i][idx_test_train]], axis=0
+            )
     p = np.random.RandomState(seed=seed).permutation(len(Y_test))
     idx_test_attacker = p[:n_attacker_knowledge]
     idx_test_test = p[-n_attack_sample_cls:]
@@ -109,39 +125,40 @@ def get_mia_datasets_client_balanced(X_split, Y_split, X_test, Y_test, n_attacke
     mia_true = np.array(mia_true)
 
     attacker_knowledge = {
-        "in_train_data" : (x_train_attacker, y_train_attacker),
-        "not_train_data" : (x_test_attacker, y_test_attacker),
+        "in_train_data": (x_train_attacker, y_train_attacker),
+        "not_train_data": (x_test_attacker, y_test_attacker),
     }
 
     ret = {
         "attacker_knowledge": attacker_knowledge,
-        "mia_data" : (x_mia_test, y_mia_test),
-        "mia_labels" : mia_true
+        "mia_data": (x_mia_test, y_mia_test),
+        "mia_labels": mia_true,
     }
 
     return ret
 
 
 def select_n_index(n, total_len, seed=None):
-    if n<0:
+    if n < 0:
         return np.random.RandomState(seed=seed).permutation(total_len)[n:]
     return np.random.RandomState(seed=seed).permutation(total_len)[:n]
 
 
-def get_mia_datasets(train_data, test_data, n_attacker_knowledge=100, n_attack_sample=5000, seed=None):
-    """Get attacker training data knowledge 
+def get_mia_datasets(
+    train_data, test_data, n_attacker_knowledge=100, n_attack_sample=5000, seed=None
+):
+    """Get attacker training data knowledge
     and sample from train and test set for attack evaluation."""
 
     x_train, y_train = train_data
     x_test, y_test = test_data
-    train_attacker_id = select_n_index(n_attacker_knowledge,len(x_train), seed=seed)
+    train_attacker_id = select_n_index(n_attacker_knowledge, len(x_train), seed=seed)
     test_attacker_id = select_n_index(n_attacker_knowledge, len(x_test), seed=seed)
 
     real_n_attack_sample = min(len(x_train), len(x_test), n_attack_sample)
 
-    test_from_train_id = select_n_index(-real_n_attack_sample,len(x_train), seed=seed)
-    test_from_test_id = select_n_index(-real_n_attack_sample,len(x_test), seed=seed)
-
+    test_from_train_id = select_n_index(-real_n_attack_sample, len(x_train), seed=seed)
+    test_from_test_id = select_n_index(-real_n_attack_sample, len(x_test), seed=seed)
 
     x_train_attacker = x_train[train_attacker_id]
     y_train_attacker = y_train[train_attacker_id]
@@ -159,14 +176,14 @@ def get_mia_datasets(train_data, test_data, n_attacker_knowledge=100, n_attack_s
     mia_true = np.array(mia_true)
 
     attacker_knowledge = {
-        "in_train_data" : (x_train_attacker, y_train_attacker),
-        "not_train_data" : (x_test_attacker, y_test_attacker),
+        "in_train_data": (x_train_attacker, y_train_attacker),
+        "not_train_data": (x_test_attacker, y_test_attacker),
     }
 
     ret = {
         "attacker_knowledge": attacker_knowledge,
-        "mia_data" : (x_mia_test, y_mia_test),
-        "mia_labels" : mia_true
+        "mia_data": (x_mia_test, y_mia_test),
+        "mia_labels": mia_true,
     }
 
     return ret

@@ -20,28 +20,25 @@ from flwr.server.strategy.aggregate import aggregate
 import os
 import numpy as np
 
-from src import model_aggregation, models    
+from src import model_aggregation, models
+
 
 def get_example_model_shape(conf):
-    model = models.get_model_architecture(unit_size=conf['unit_size'], conf=conf)
+    model = models.get_model_architecture(unit_size=conf["unit_size"], conf=conf)
     shapes = [np.shape(l) for l in model.get_weights()]
     return shapes
-    
-    
+
+
 def get_on_fit_config_fn() -> Callable[[int], Dict[str, str]]:
     """Return a function which returns training configurations."""
 
     def fit_config(server_round: int) -> Dict[str, str]:
         """Return a configuration with static batch size and (local) epochs."""
-        config = {
-            "round_seed": server_round,
-            "round": server_round
-        }
+        config = {"round_seed": server_round, "round": server_round}
         return config
 
     return fit_config
-    
-    
+
 
 class SaveAndLogStrategy(fl.server.strategy.FedAvg):
     """Adding saving and logging to the strategy pipeline"""
@@ -52,8 +49,13 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
         self.aggregated_parameters = None
         self.best_loss = np.inf
         self.global_model_shapes = get_example_model_shape(conf)
-        with open(os.path.join(self.conf['paths']['models'], self.conf['model_id'], "log_history.csv"), 'w') as f:
-            f.write('epoch,val_loss\n')
+        with open(
+            os.path.join(
+                self.conf["paths"]["models"], self.conf["model_id"], "log_history.csv"
+            ),
+            "w",
+        ) as f:
+            f.write("epoch,val_loss\n")
         super().__init__(on_fit_config_fn=get_on_fit_config_fn(), *args, **kwargs)
 
     def aggregate_fit(
@@ -74,19 +76,23 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples)
             for _, fit_res in results
         ]
-        if self.conf['ma_mode'] == 'heterofl':
-            parameters_aggregated = ndarrays_to_parameters(model_aggregation.aggregate_hetero(weights_results))
-        elif self.conf['ma_mode'] == 'rm-cid':
-            cid_results = [
-                fit_res.metrics['client_id'] for _, fit_res in results
-            ]
-            parameters_aggregated = ndarrays_to_parameters(model_aggregation.aggregate_rmcid(weights_results, 
-                                                                                    cid_results, 
-                                                                                    self.global_model_shapes, 
-                                                                                    server_round, 
-                                                                                    total_clients=self.conf['num_clients'], 
-                                                                                    permutate=self.conf['permutate_cuts'],
-                                                                                    conf=self.conf))
+        if self.conf["ma_mode"] == "heterofl":
+            parameters_aggregated = ndarrays_to_parameters(
+                model_aggregation.aggregate_hetero(weights_results)
+            )
+        elif self.conf["ma_mode"] == "rm-cid":
+            cid_results = [fit_res.metrics["client_id"] for _, fit_res in results]
+            parameters_aggregated = ndarrays_to_parameters(
+                model_aggregation.aggregate_rmcid(
+                    weights_results,
+                    cid_results,
+                    self.global_model_shapes,
+                    server_round,
+                    total_clients=self.conf["num_clients"],
+                    permutate=self.conf["permutate_cuts"],
+                    conf=self.conf,
+                )
+            )
         else:
             parameters_aggregated = ndarrays_to_parameters(aggregate(weights_results))
 
@@ -97,9 +103,10 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
         elif server_round == 1:  # Only log this warning once
             log(WARNING, "No fit_metrics_aggregation_fn provided")
-        self.aggregated_parameters  = parameters_aggregated # Why can't I access this at eval?
+        self.aggregated_parameters = (
+            parameters_aggregated  # Why can't I access this at eval?
+        )
         return parameters_aggregated, metrics_aggregated
-
 
     def aggregate_evaluate(
         self,
@@ -113,48 +120,73 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             "Aggregated results: %s",
             aggregated_result,
         )
-        with open(os.path.join(self.conf['paths']['models'], self.conf['model_id'], "log_history.csv"), 'a') as f:
-            f.write(str(rnd)+','+str(aggregated_result[0])+'\n')
-            
-        if self.aggregated_parameters is not None and aggregated_result[0] < self.best_loss:
+        with open(
+            os.path.join(
+                self.conf["paths"]["models"], self.conf["model_id"], "log_history.csv"
+            ),
+            "a",
+        ) as f:
+            f.write(str(rnd) + "," + str(aggregated_result[0]) + "\n")
+
+        if (
+            self.aggregated_parameters is not None
+            and aggregated_result[0] < self.best_loss
+        ):
             self.best_loss = aggregated_result[0]
-            save_path = os.path.join(self.conf['paths']['models'],
-                                     self.conf['model_id'],
-                                     'saved_model_best')
+            save_path = os.path.join(
+                self.conf["paths"]["models"], self.conf["model_id"], "saved_model_best"
+            )
             log(INFO, "Saving model to %s", save_path)
             aggregated_weights = fl.common.parameters_to_ndarrays(
-                self.aggregated_parameters)
-            model = models.init_model(self.conf['unit_size'], conf=self.conf, weights=aggregated_weights) 
+                self.aggregated_parameters
+            )
+            model = models.init_model(
+                self.conf["unit_size"], conf=self.conf, weights=aggregated_weights
+            )
             models.save_model(model, save_path)
-        if rnd%10==0:
+        if rnd % 10 == 0:
             # save every 10th
-            save_path = os.path.join(self.conf['paths']['models'],
-                                     self.conf['model_id'],
-                                     f'saved_model_{str(rnd)}')
+            save_path = os.path.join(
+                self.conf["paths"]["models"],
+                self.conf["model_id"],
+                f"saved_model_{str(rnd)}",
+            )
             log(INFO, "Saving model to %s", save_path)
             aggregated_weights = fl.common.parameters_to_ndarrays(
-                self.aggregated_parameters)
-            model = models.init_model(self.conf['unit_size'], conf=self.conf, weights=aggregated_weights) 
+                self.aggregated_parameters
+            )
+            model = models.init_model(
+                self.conf["unit_size"], conf=self.conf, weights=aggregated_weights
+            )
             models.save_model(model, save_path)
-        if rnd <self.conf['rounds'] and rnd>=(self.conf['rounds']-self.conf['save_last_clients']):
+        if rnd < self.conf["rounds"] and rnd >= (
+            self.conf["rounds"] - self.conf["save_last_clients"]
+        ):
             # for client analysis
-            save_path = os.path.join(self.conf['paths']['models'],
-                                     self.conf['model_id'],
-                                     f'saved_model_{str(rnd)}')
+            save_path = os.path.join(
+                self.conf["paths"]["models"],
+                self.conf["model_id"],
+                f"saved_model_{str(rnd)}",
+            )
             log(INFO, "Saving model to %s", save_path)
             aggregated_weights = fl.common.parameters_to_ndarrays(
-                self.aggregated_parameters)
-            model = models.init_model(self.conf['unit_size'], conf=self.conf, weights=aggregated_weights) 
-            models.save_model(model, save_path)          
-        if rnd == self.conf['rounds']:
+                self.aggregated_parameters
+            )
+            model = models.init_model(
+                self.conf["unit_size"], conf=self.conf, weights=aggregated_weights
+            )
+            models.save_model(model, save_path)
+        if rnd == self.conf["rounds"]:
             # end of training calls
-            save_path = os.path.join(self.conf['paths']['models'],
-                                     self.conf['model_id'],
-                                     'saved_model')
+            save_path = os.path.join(
+                self.conf["paths"]["models"], self.conf["model_id"], "saved_model"
+            )
             log(INFO, "Saving model to %s", save_path)
             aggregated_weights = fl.common.parameters_to_ndarrays(
-                self.aggregated_parameters)
-            model = models.init_model(self.conf['unit_size'], conf=self.conf, weights=aggregated_weights) 
+                self.aggregated_parameters
+            )
+            model = models.init_model(
+                self.conf["unit_size"], conf=self.conf, weights=aggregated_weights
+            )
             models.save_model(model, save_path)
         return aggregated_result
-
