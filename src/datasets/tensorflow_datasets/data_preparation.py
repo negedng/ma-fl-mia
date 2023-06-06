@@ -56,7 +56,7 @@ def preprocess_data(data, conf, shuffle=False, cache=False):
 
 
 def load_data(
-    dataset_mode="cifar10", input_shape=(32, 32, 3), val_split=True, norm=False, conf={}
+    dataset_mode="cifar10", val_split=True, conf={}
 ):
     if "val_split" in conf.keys():
         val_split = conf["val_split"]
@@ -69,8 +69,6 @@ def load_data(
                 as_supervised=True,
             )
         else:
-            train_ds, val_ds, test_ds = tfds.load(
-                "cifar10", split=["train", "test", "test"], as_supervised=True
-            )
+            train_ds, val_ds, test_ds = tfds.load("cifar10", split=["train", "test", "test"], as_supervised=True)
 
     return train_ds, val_ds, test_ds

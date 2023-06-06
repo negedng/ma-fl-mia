@@ -142,14 +142,14 @@ class FlowerClient(fl.client.NumPyClient):
             test_ds = datasets.preprocess_data(test_ds, self.conf)
 
             # Local model eval
-            loss, local_accuracy = models.evaluate(self.model, test_ds, verbose=0)
+            loss, local_accuracy = models.evaluate(self.model, test_ds, self.conf, verbose=0)
             # Global model eval
             test_ds = datasets.get_ds_from_np(self.test_data)
             test_ds = datasets.preprocess_data(test_ds, self.conf)
             g_model = models.init_model(
                 self.conf["unit_size"], conf=self.conf, weights=weights
             )
-            loss, accuracy = models.evaluate(g_model, test_ds, verbose=0)
+            loss, accuracy = models.evaluate(g_model, test_ds, self.conf, verbose=0)
 
             return (
                 loss,

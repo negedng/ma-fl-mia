@@ -4,6 +4,7 @@ import numpy as np
 
 from src.models.tensorflow_models import scaler, diao_cnn, alexnet, simple_cnn, resnet
 
+print(tf.config.list_physical_devices('GPU'))
 
 custom_objects = {"Scaler": scaler.Scaler}
 
@@ -48,7 +49,7 @@ def get_model_architecture(unit_size, model_mode=None, conf={}, *args, **kwargs)
         return resnet.resnet18(
             unit_size=unit_size, model_rate=model_rate, *args, **kwargs
         )
-    raise ValueError(f"Unknown model type{mode}")
+    raise ValueError(f"Unknown model type{model_mode}")
 
 
 def get_optimizer(*args, **kwargs):
@@ -64,7 +65,7 @@ def get_loss(*args, **kwargs):
 def init_model(unit_size, conf, model_path=None, weights=None, *args, **kwargs):
     model = get_model_architecture(
         unit_size=unit_size, conf=conf, *args, **kwargs
-    )  # maybe you need static_bn?
+    )
     if model_path is not None:
         model.load_weights(model_path).expect_partial()
     if weights is not None:
@@ -77,7 +78,7 @@ def init_model(unit_size, conf, model_path=None, weights=None, *args, **kwargs):
     return model
 
 
-def evaluate(model, data, verbose=0):
+def evaluate(model, data, conf, verbose=0):
     r = model.evaluate(data, verbose=verbose)
 
     return r

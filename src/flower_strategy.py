@@ -25,7 +25,8 @@ from src import model_aggregation, models
 
 def get_example_model_shape(conf):
     model = models.get_model_architecture(unit_size=conf["unit_size"], conf=conf)
-    shapes = [np.shape(l) for l in model.get_weights()]
+    weights = models.get_weights(model)
+    shapes = [np.shape(l) for l in weights]
     return shapes
 
 

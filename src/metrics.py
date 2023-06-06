@@ -22,12 +22,12 @@ def evaluate(conf, model, train_ds=None, val_ds=None, test_ds=None, verbose=1):
         conf["seed"],
     )
 
-    train_performance = models.evaluate(model, train_ds, verbose=verbose)
+    train_performance = models.evaluate(model, train_ds, conf, verbose=verbose)
     if val_ds is not None:
-        val_performance = models.evaluate(model, val_ds, verbose=verbose)
+        val_performance = models.evaluate(model, val_ds, conf, verbose=verbose)
     else:
         val_performance = [None] * len(train_performance)
-    test_performance = models.evaluate(model, test_ds, verbose=verbose)
+    test_performance = models.evaluate(model, test_ds, conf, verbose=verbose)
     mia_preds = attacks.attack(
         model,
         r["attacker_knowledge"],
@@ -145,7 +145,7 @@ def evaluate_per_client(
         train_c_ds = datasets.get_ds_from_np((X_client, Y_client))
         train_c_ds = datasets.preprocess_data(train_c_ds, conf)
 
-        train_performance = models.evaluate(model, train_c_ds, verbose=0)
+        train_performance = models.evaluate(model, train_c_ds, conf, verbose=0)
         c_res["train_acc"] = train_performance[1]
 
         len_data = min(len(X_client), len(X_test))

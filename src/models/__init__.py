@@ -1,7 +1,6 @@
-tf_models = True
+TF_MODELS = True
 
-if tf_models:
-    from .tensorflow_models.model_utils import custom_objects
+if TF_MODELS:
     from .tensorflow_models.model_utils import get_model_architecture
     from .tensorflow_models.model_utils import get_optimizer, get_loss
     from .tensorflow_models.model_utils import init_model
@@ -13,3 +12,12 @@ if tf_models:
     from .tensorflow_models.model_utils import get_weights
     from .tensorflow_models.model_utils import save_model
     from .tensorflow_models.model_utils import print_summary
+else:
+    from .pytorch_models.model_utils import get_optimizer, get_loss
+    from .pytorch_models.model_utils import get_weights, set_weights
+    from .pytorch_models.model_utils import evaluate
+    from .pytorch_models.model_utils import save_model
+    from .pytorch_models.model_utils import print_summary
+    from .pytorch_models.model_utils import fit, predict, predict_losses
+    from .pytorch_models.model_utils import get_model_architecture
+    from .pytorch_models.model_utils import init_model
