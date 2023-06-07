@@ -12,7 +12,6 @@ def basic_block(
     x,
     planes,
     stride=1,
-    downsample=None,
     name=None,
     use_scaler=False,
     scaler_rate=1.0,
@@ -20,10 +19,32 @@ def basic_block(
     norm_mode="bn",
     static_bn=False,
 ):
-    identity = x
+    downsample_out = x
 
     out = x
-    # out = conv3x3(x, planes, stride=stride, name=f'{name}.conv1')
+    out = get_scaler(use_scaler, scaler_rate, keep_scaling, name=f"{name}.scaler1")(out)
+    out = get_norm(norm_mode, static_bn, name=f"{name}.bn1")(out)
+    out = tf.keras.layers.ReLU(name=f"{name}.relu1")(out)
+
+    downsample = None
+    inplanes = x.shape[3]
+    if stride != 1 or inplanes != planes:
+        downsample = [
+            tf.keras.layers.Conv2D(
+                filters=planes,
+                kernel_size=1,
+                strides=stride,
+                use_bias=False,
+                kernel_initializer=kaiming_normal,
+                name=f"{name}.0.downsample.0",
+            ),
+        ]
+        downsample_out = out
+        for layer in downsample:
+            downsample_out = layer(downsample_out)
+
+        
+
     out = tf.keras.layers.Conv2D(
         filters=planes,
         kernel_size=3,
@@ -33,11 +54,11 @@ def basic_block(
         name=f"{name}.conv1",
         padding="same",
     )(out)
-    out = get_scaler(use_scaler, scaler_rate, keep_scaling, name=f"{name}.scaler1")(out)
-    out = get_norm(norm_mode, static_bn, name=f"{name}.bn1")(out)
-    out = tf.keras.layers.ReLU(name=f"{name}.relu1")(out)
 
-    # out = conv3x3(out, planes, name=f'{name}.conv2')
+
+    out = get_scaler(use_scaler, scaler_rate, keep_scaling, name=f"{name}.scaler2")(out)
+    out = get_norm("bn", False, name=f"{name}.bn2")(out)
+    out = tf.keras.layers.ReLU(name=f"{name}.relu2")(out)
     out = tf.keras.layers.Conv2D(
         filters=planes,
         kernel_size=3,
@@ -47,16 +68,9 @@ def basic_block(
         name=f"{name}.conv2",
         padding="same",
     )(out)
-    out = get_scaler(use_scaler, scaler_rate, keep_scaling, name=f"{name}.scaler2")(out)
-    out = get_norm("bn", False, name=f"{name}.bn2")(out)
 
-    if downsample is not None:
-        for layer in downsample:
-            identity = layer(identity)
-
-    out = tf.keras.layers.Add(name=f"{name}.add")([identity, out])
-    out = tf.keras.layers.ReLU(name=f"{name}.relu2")(out)
-
+    out = tf.keras.layers.Add(name=f"{name}.add")([downsample_out, out])
+    
     return out
 
 
@@ -72,29 +86,11 @@ def make_layer(
     norm_mode="bn",
     static_bn=False,
 ):
-    downsample = None
-    inplanes = x.shape[3]
-    if stride != 1 or inplanes != planes:
-        downsample = [
-            tf.keras.layers.Conv2D(
-                filters=planes,
-                kernel_size=1,
-                strides=stride,
-                use_bias=False,
-                kernel_initializer=kaiming_normal,
-                name=f"{name}.0.downsample.0",
-            ),
-            get_scaler(
-                use_scaler, scaler_rate, keep_scaling, name=f"{name}.0.downsample.1"
-            ),
-            get_norm(norm_mode, static_bn, name=f"{name}.0.downsample.2"),
-        ]
 
     x = basic_block(
         x,
         planes,
         stride,
-        downsample,
         name=f"{name}.0",
         use_scaler=use_scaler,
         scaler_rate=scaler_rate,
@@ -145,9 +141,6 @@ def resnet(
             padding="same",
             name="conv1",
         )(x)
-        x = get_scaler(use_scaler, scaler_rate, keep_scaling, name=f"scaler1")(x)
-        x = get_norm(norm_mode, static_bn, name=f"bn1")(x)
-        x = tf.keras.layers.ReLU(name="relu1")(x)
     else:
         x = tf.keras.layers.Conv2D(
             filters=unit_size,
@@ -158,9 +151,7 @@ def resnet(
             padding="same",
             name="conv1",
         )(x)
-        x = get_scaler(use_scaler, scaler_rate, keep_scaling, name=f"scaler1")(x)
-        x = get_norm(norm_mode, static_bn, name=f"bn1")(x)
-        x = tf.keras.layers.ReLU(name="relu1")(x)
+
         x = tf.keras.layers.MaxPool2D(
             pool_size=3, strides=2, padding="same", name="maxpool"
         )(x)
@@ -169,6 +160,10 @@ def resnet(
     x = make_layer(x, unit_size * 2, blocks_per_layer[1], stride=2, name="layer2")
     x = make_layer(x, unit_size * 4, blocks_per_layer[2], stride=2, name="layer3")
     x = make_layer(x, unit_size * 8, blocks_per_layer[3], stride=2, name="layer4")
+
+    x = get_scaler(use_scaler, scaler_rate, keep_scaling, name=f"scaler1")(x)
+    x = get_norm(norm_mode, static_bn, name=f"bn1")(x)
+    x = tf.keras.layers.ReLU(name="relu1")(x)
 
     x = tf.keras.layers.GlobalAveragePooling2D(name="avgpool")(x)
     initializer = tf.keras.initializers.RandomUniform(
