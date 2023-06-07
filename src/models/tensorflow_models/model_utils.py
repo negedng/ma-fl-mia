@@ -64,13 +64,24 @@ def get_model_architecture(unit_size, model_mode=None, conf={}, *args, **kwargs)
     raise ValueError(f"Unknown model type{model_mode}")
 
 
-def get_optimizer(*args, **kwargs):
-    return tf.keras.optimizers.Adam(*args, **kwargs)
+def get_optimizer(conf={}):
+    if "optimizer" not in conf.keys():
+        conf["optimizer"] = "SGD"
+    if "learning_rate" not in conf.keys():
+        conf["learing_rate"] = 0.1
+    if "weight_decay" not in conf.keys():
+        conf["weight_decay"] = 5e-4
+    if conf["optimizer"]=="Adam":
+        return tf.keras.optimizers.Adam(learning_rate=conf["learning_rate"])
+    if conf["optimizer"]=="SGD":
+        return tf.keras.optimizers.SGD(learning_rate=conf["learning_rate"],
+                                       decay=conf["weight_decay"])
+    raise NotImplementedError(f'Optim not recognized: {conf["optimizer"]}')
 
 
-def get_loss(*args, **kwargs):
+def get_loss(conf={}):
     return tf.keras.losses.SparseCategoricalCrossentropy(
-        from_logits=True, *args, **kwargs
+        from_logits=True
     )
 
 
@@ -83,8 +94,8 @@ def init_model(unit_size, conf, model_path=None, weights=None, *args, **kwargs):
     if weights is not None:
         model.set_weights(weights)
     model.compile(
-        optimizer=get_optimizer(learning_rate=conf["learning_rate"]),
-        loss=get_loss(),
+        optimizer=get_optimizer(conf),
+        loss=get_loss(conf),
         metrics=["sparse_categorical_accuracy"],
     )
     return model

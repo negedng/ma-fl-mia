@@ -31,21 +31,26 @@ def set_weights(model, weights: List[np.ndarray]):
     model.load_state_dict(state_dict, strict=True)
 
 
-def get_loss(*args, **kwargs):
+def get_loss(conf={}):
     return torch.nn.functional.cross_entropy
     return torch.nn.CrossEntropyLoss(*args, **kwargs)
 
 
-def get_optimizer(params, *args, **kwargs):
-    if "learning_rate" in kwargs:
-        lr = kwargs["learning_rate"]
+def get_optimizer(params, conf={}):
+    if "optimizer" not in conf.keys():
+        conf["optimizer"]="Adam"
+    if "learning_rate" in conf.keys():
+        lr = conf["learning_rate"]
     else:
         lr = 0.001
-    return torch.optim.Adam(params, lr=lr)
-
+    if conf["optimizer"]=="Adam":
+        return torch.optim.Adam(params, lr=lr)
+    if conf["optimizer"]=="SGD":
+        return torch.optim.SGD(params, lr=lr)
+    raise NotImplementedError(f'Optim not recognized {conf["optimizer"]}')
 
 def evaluate(model, data, conf, verbose=0):
-    loss_fn = get_loss()
+    loss_fn = get_loss(conf)
     correct, total, loss = 0, 0, 0.0
     with torch.no_grad():
         for batch in data:
@@ -152,8 +157,8 @@ class History:
 
 def fit(model, data, conf, verbose=0):
     history = History()
-    optimizer = get_optimizer(model.parameters(), learning_rate=conf["learning_rate"])
-    loss_fn = get_loss()
+    optimizer = get_optimizer(model.parameters(), conf)
+    loss_fn = get_loss(conf)
     for epoch in range(conf["epochs"]):
         iterator = data
         if verbose>0.8:
