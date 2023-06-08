@@ -22,8 +22,9 @@ def train(conf, train_ds=None, val_ds=None, test_ds=None):
     if conf["aug"]:
         train_ds = datasets.aug_data(train_ds, conf=conf)
     train_ds = datasets.preprocess_data(train_ds, conf=conf, shuffle=True)
+    val_ds = datasets.preprocess_data(val_ds, conf=conf)
     print("start fit")
-    history = models.fit(model, train_ds, conf=conf, verbose=1)
+    history = models.fit(model, train_ds, conf=conf, verbose=1, validation_data=val_ds)
 
     os.makedirs(os.path.join(conf["paths"]["models"], conf["model_id"]), mode=0o777)
     
@@ -67,11 +68,8 @@ if __name__ == "__main__":
 
         model, model_conf = train(conf, train_ds, val_ds, test_ds)
         models.save_model(model, os.path.join(model_conf["paths"]["models"], model_conf["model_id"], "saved_model/"))
-        train_ds = datasets.preprocess_data(train_ds, conf=conf)
-        val_ds = datasets.preprocess_data(val_ds, conf=conf)
-        test_ds = datasets.preprocess_data(test_ds, conf=conf)
 
-        results = metrics.evaluate(model_conf, model, train_ds, val_ds, test_ds)
+        results = metrics.evaluate(model_conf, model)
         print(results)
         with open(
             os.path.join(

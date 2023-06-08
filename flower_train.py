@@ -9,11 +9,18 @@ import numpy as np
 import json
 import copy
 
+from src import utils
+
+global conf
+conf = utils.load_config()
+os.environ["CUDA_VISIBLE_DEVICES"] = conf["CUDA_VISIBLE_DEVICES"]
+
+
 from src.datasets import data_allocation
 from src import datasets
 from src.flower_client import FlowerClient
 from src.flower_strategy import SaveAndLogStrategy
-from src import utils, models, attacks, metrics
+from src import models, attacks, metrics
 from exp import setups
 
 # DP wrappers
@@ -21,14 +28,11 @@ from flwr.client import dpfedavg_numpy_client
 from flwr.server.strategy import dpfedavg_adaptive
 
 
-global conf
 global X_split
 global Y_split
 global X_val
 global Y_val
 
-conf = utils.load_config()
-os.environ["CUDA_VISIBLE_DEVICES"] = conf["CUDA_VISIBLE_DEVICES"]
 
 
 def client_fn(cid: str) -> fl.client.Client:

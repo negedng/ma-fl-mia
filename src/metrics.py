@@ -11,6 +11,9 @@ def evaluate(conf, model, train_ds=None, val_ds=None, test_ds=None, verbose=1):
     """Attack on server"""
     if train_ds is None:
         train_ds, val_ds, test_ds = datasets.load_data(conf=conf)
+        train_ds = datasets.preprocess_data(train_ds, conf)
+        val_ds = datasets.preprocess_data(val_ds, conf)
+        test_ds = datasets.preprocess_data(test_ds, conf)
 
     train_data = datasets.get_np_from_ds(train_ds)
     test_data = datasets.get_np_from_ds(test_ds)
@@ -42,7 +45,7 @@ def evaluate(conf, model, train_ds=None, val_ds=None, test_ds=None, verbose=1):
         "unit_size": conf["unit_size"],
         "alpha": conf["dirichlet_alpha"],
         "model_id": conf["model_id"],
-        "params": model.count_params(),
+        "params": models.count_params(model),
         "model_mode": conf["model_mode"],
         "scale_mode": conf["scale_mode"],
         "ma_mode": conf["ma_mode"],
