@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.models import predict_losses, predict
+from src.models import predict_losses, predict, calculate_loss
 
 
 def yeom_mi_attack(losses, threshold):
@@ -99,8 +99,8 @@ def yeom_classwise_threshold(model, attacker_knowledge, loss_function, *args, **
         x_train_attacker_cls = x_train_attacker[y_train_attacker == cls]
         y_train_attacker_cls = y_train_attacker[y_train_attacker == cls]
         y_pred_cls = predict(model, x_train_attacker_cls, verbose=0)
-        loss_train_attacker_cls = loss_function(y_train_attacker_cls, y_pred_cls)
-        thresholds[cls] = loss_train_attacker_cls.numpy()
+        loss_train_attacker_cls = calculate_loss(y_train_attacker_cls, y_pred_cls, loss_function, reduction='mean')
+        thresholds[cls] = loss_train_attacker_cls
     return thresholds
 
 
