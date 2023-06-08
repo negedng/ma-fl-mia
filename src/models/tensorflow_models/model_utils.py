@@ -107,8 +107,8 @@ def evaluate(model, data, conf, verbose=0):
     return r
 
 
-def fit(model, data, conf, verbose=0):
-    history = model.fit(data, epochs=conf["epochs"], verbose=verbose)
+def fit(model, data, conf, verbose=0, validation_data=None):
+    history = model.fit(data, epochs=conf["epochs"], verbose=verbose, validation_data=validation_data)
     return history
 
 
@@ -129,6 +129,22 @@ def predict_losses(model, X, Y, loss_function, verbose=0.5):
     return np.array(losses)
 
 
+def calculate_loss(y_pred, y_true, loss_function, reduction='auto'):
+    if reduction=='none' or reduction=='mean':
+        red_func = tf.keras.losses.Reduction.NONE
+    elif reduction=='sum':
+        red_func = tf.keras.losses.Reduction.SUM
+    elif reduction=='auto':
+        red_func = tf.keras.losses.Reduction.AUTO
+    old_red = loss_function.reduction
+    loss_function.reduction = red_func
+    losses = loss_function(y_pred, y_true)
+    loss_function.reduction = old_red
+    if reduction=='mean':
+        losses = np.mean(losses)
+    return losses
+
+
 def predict(model, X, verbose=0):
     return model.predict(X, verbose=verbose)
 
@@ -147,3 +163,6 @@ def save_model(model, model_path):
 
 def print_summary(model):
     print(model.summary())
+
+def count_params(model):
+    return model.count_params()
