@@ -23,7 +23,7 @@ class DiaoCNN(nn.Module):
         norm_mode="bn",
         default_hidden=[64, 128, 256, 512],
     ):
-        super().__init__()
+        super(DiaoCNN, self).__init__()
 
         hidden_sizes = [int(np.ceil(model_rate * x)) for x in default_hidden]
         scaler_rate = model_rate
