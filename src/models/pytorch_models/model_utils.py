@@ -18,22 +18,23 @@ def get_device(conf):
                 if conf["client_resources"]["num_gpus"] > 0:
                     device = torch.device("cuda")
                     return device
-    return get_cpu
+    return get_cpu()
 
 
 def get_weights(model):
+    #return [layer.detach().cpu().numpy() for layer in model.parameters()]
     return [val.cpu().numpy() for _, val in model.state_dict().items()]
 
 
 def set_weights(model, weights: List[np.ndarray]):
     params_dict = zip(model.state_dict().keys(), weights)
     state_dict = OrderedDict({k: torch.Tensor(v) for k, v in params_dict})
-    model.load_state_dict(state_dict, strict=True)
+    model.load_state_dict(state_dict, strict=False)
 
 
 def get_loss(conf={}):
     return torch.nn.functional.cross_entropy
-    return torch.nn.CrossEntropyLoss(*args, **kwargs)
+    #return torch.nn.CrossEntropyLoss(reduction="sum")
 
 
 def get_optimizer(params, conf={}):
@@ -50,13 +51,14 @@ def get_optimizer(params, conf={}):
     raise NotImplementedError(f'Optim not recognized {conf["optimizer"]}')
 
 def evaluate(model, data, conf, verbose=0):
+    model.eval()
     loss_fn = get_loss(conf)
     correct, total, loss = 0, 0, 0.0
     with torch.no_grad():
-        for batch in data:
-            images, labels = batch[0].to(get_device(conf)), data[1].to(get_device(conf))
+        for images, labels in data:
+            images, labels = images.to(get_device(conf)), labels.to(get_device(conf))
             outputs = model(images)
-            loss += loss_fn(outputs, labels).item()
+            loss += loss_fn(outputs, labels, reduction="sum").item()
             _, predicted = torch.max(outputs.data, 1)
 
             total += labels.size(0)
@@ -67,34 +69,67 @@ def evaluate(model, data, conf, verbose=0):
 
 
 def save_model(model, model_path):
-    torch.save(model.state_dict(), os.path.join(model_path,"torchmodel"))
+    try:
+        os.makedirs(os.path.join(model_path))
+    except FileExistsError:
+        pass # Not nice...
+    torch.save(model.state_dict(), os.path.join(model_path,"torchmodel.pt"))
 
 
 def print_summary(model):
     print(model)
+    print("Total number of parameters:", count_params(model))
+    print("Trainable parameters:", count_params(model, only_trainable=True))
 
 
-def predict(model, X, conf, verbose=0):
-    model.to(get_cpu)
-    ret = []
+def predict(model, X, verbose=0):
+    model.eval()
+    model.to(get_cpu())
     with torch.no_grad():
-        for batch in X:
-            images = batch.to(get_cpu)
-            outputs = model(images)
-            ret.append(outputs)
-    return ret
+        images = np_to_tensor(X)
+        #images = batch.to(get_cpu())
+        outputs = model(images)
+        return outputs
+
+
+def np_to_tensor(images):
+    return torch.from_numpy(np.transpose(images,(0,3,1,2)))
 
 
 def predict_losses(model, X, Y, loss_function, verbose=0.5):
-    model.to(get_cpu)
-    all_losses = []
+    model.eval()
+    model.to(get_cpu())
     with torch.no_grad():
-        for batch in zip(X, Y):
-            images, labels = batch[0].to(get_cpu), batch[1].to(get_cpu)
+        if len(X)<1000:
+            images, labels = X, Y
+            images = np_to_tensor(images)
+            labels = torch.from_numpy(labels)
             outputs = model(images)
-            losses = loss_function(outputs, labels).item()
-            all_losses.append(losses)
-    return np.array(all_losses)
+            losses = loss_function(outputs, labels, reduction='none').detach().numpy()
+            return np.array(losses)
+        losses = []
+        for i in range(0,len(X),1000):
+            images, labels = X[i:i+1000], Y[i:i+1000]
+            images = np_to_tensor(images)
+            labels = torch.from_numpy(labels)
+            outputs = model(images)
+            loss = loss_function(outputs, labels, reduction='none').detach().numpy()
+            losses.extend(loss)
+        return np.array(losses)
+
+
+def calculate_loss(y_true, y_pred, loss_function, reduction='none'):
+    if type(y_pred) is np.ndarray:
+        y_pred = torch.from_numpy(y_pred)
+    if type(y_true) is np.ndarray:
+        if np.isscalar(y_true[0]):
+            y_true = torch.from_numpy(y_true)
+            y_true = torch.eye(y_pred.shape[1])[y_true]
+        else:
+            y_true = torch.from_numpy(y_true)
+    #if reduction =='none':
+    return loss_function(y_pred, y_true, reduction=reduction).detach().numpy()
+
 
 
 def get_model_architecture(unit_size, model_mode=None, conf={}, *args, **kwargs):
@@ -143,7 +178,7 @@ def get_model_architecture(unit_size, model_mode=None, conf={}, *args, **kwargs)
 def init_model(unit_size, conf, model_path=None, weights=None, *args, **kwargs):
     model = get_model_architecture(unit_size=unit_size, conf=conf, *args, **kwargs)
     if model_path is not None:
-        model.load_state_dict(torch.load(model_path))
+        model.load_state_dict(torch.load(os.path.join(model_path, "torchmodel.pt")))
     if weights is not None:
         set_weights(model, weights)
     model.to(get_device(conf))
@@ -155,7 +190,8 @@ class History:
         self.history = {"loss": [], "accuracy": []}
 
 
-def fit(model, data, conf, verbose=0):
+def fit(model, data, conf, verbose=0, validation_data=None):
+    model.train() # switch to training mode
     history = History()
     optimizer = get_optimizer(model.parameters(), conf)
     loss_fn = get_loss(conf)
@@ -172,14 +208,41 @@ def fit(model, data, conf, verbose=0):
             loss.backward()
             optimizer.step()
             # Metrics
-            epoch_loss += loss.item()
+            epoch_loss += loss.item() * images.size(0)
             total += labels.size(0)
             correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
             del loss, outputs
         epoch_loss /= len(data.dataset)
         epoch_acc = correct / total
+
+        if validation_data is not None:
+            model.eval() # validation
+            with torch.no_grad():
+                correct, total, val_loss = 0, 0, 0.0
+                for images, labels in validation_data:
+                    images, labels = images.to(get_device(conf)), labels.to(get_device(conf))
+                    outputs = model(images)
+                    loss = loss_fn(outputs, labels)
+                    val_loss += loss.item() * images.size(0)
+                    total += labels.size(0)
+                    correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
+                    del loss, outputs
+                val_loss /= len(validation_data.dataset)
+                val_acc = correct / total
+            model.train() # switch to training mode
         if verbose > 0:
-            print(f"Epoch {epoch+1}: train loss {epoch_loss}, accuracy {epoch_acc}")
+            v_string = ''
+            if validation_data is not None:
+                v_string = f" val_loss:{val_loss}, val_acc:{val_acc}"
+            print(f"Epoch {epoch+1}: loss:{epoch_loss}, acc:{epoch_acc}"+v_string)
         history.history["loss"].append(epoch_loss)
         history.history["accuracy"].append(epoch_acc)
     return history
+
+
+def count_params(model, only_trainable=False):
+    if only_trainable:
+        pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    else:
+        pytorch_total_params = sum(p.numel() for p in model.parameters())
+    return pytorch_total_params
