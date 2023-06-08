@@ -67,6 +67,11 @@ def calculate_unit_size(cid, conf, len_train_data):
                 unit_size = conf["unit_size"] // 2
         elif conf["scale_mode"] == "no":
             unit_size = conf["unit_size"]
+        elif conf["scale_mode"] == "half":
+            if cid%2==0:
+                unit_size = conf["unit_size"]
+            else:
+                unit_size = conf["unit_size"] // 2
         else:
             raise ValueError('scale mode not recognized{conf["scale_mode"]}')
     elif conf["ma_mode"] == "rm-cid":
