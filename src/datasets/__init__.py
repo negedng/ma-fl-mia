@@ -1,4 +1,4 @@
-TF_MODELS = True
+from src import TF_MODELS
 
 if TF_MODELS:
     from .tensorflow_datasets.augmentation import aug_data
