@@ -3,6 +3,7 @@ from torch.utils.data import random_split
 import torch
 import numpy as np
 from PIL import Image
+import copy
 
 
 def load_data(dataset_mode="cifar10", val_split=True, conf={}):
@@ -30,7 +31,7 @@ def load_data(dataset_mode="cifar10", val_split=True, conf={}):
                 torch.Generator().manual_seed(conf["seed"]),
             )
         else:
-            valset = testset
+            valset = copy.deepcopy(testset)
 
         return trainset, valset, testset
 
@@ -60,7 +61,6 @@ def preprocess_data(data, conf, shuffle=False, cache=False):
     ds = torch.utils.data.DataLoader(
         data, batch_size=conf["batch_size"], shuffle=shuffle
     )
-
     return ds
 
 
@@ -111,4 +111,4 @@ class CustomImageDataset(torch.utils.data.Dataset):
 
 
 def get_ds_from_np(data):
-    return CustomImageDataset(data)
+    return CustomImageDataset(data, transform=None, target_transform=None)
