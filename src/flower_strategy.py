@@ -4,6 +4,8 @@ from logging import ERROR, INFO
 from logging import WARNING
 from typing import Callable, Dict, List, Optional, Tuple, Union
 from flwr.server.client_proxy import ClientProxy
+from flwr.server.client_manager import ClientManager
+
 from flwr.common import (
     EvaluateIns,
     EvaluateRes,
@@ -29,18 +31,6 @@ def get_example_model_shape(conf):
     shapes = [np.shape(l) for l in weights]
     return shapes
 
-
-def get_on_fit_config_fn() -> Callable[[int], Dict[str, str]]:
-    """Return a function which returns training configurations."""
-
-    def fit_config(server_round: int) -> Dict[str, str]:
-        """Return a configuration with static batch size and (local) epochs."""
-        config = {"round_seed": server_round, "round": server_round}
-        return config
-
-    return fit_config
-
-
 class SaveAndLogStrategy(fl.server.strategy.FedAvg):
     """Adding saving and logging to the strategy pipeline"""
 
@@ -57,7 +47,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             "w",
         ) as f:
             f.write("epoch,val_loss\n")
-        super().__init__(on_fit_config_fn=get_on_fit_config_fn(), *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def aggregate_fit(
         self,
@@ -191,3 +181,36 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             )
             models.save_model(model, save_path)
         return aggregated_result
+
+
+    def configure_fit(
+        self, server_round: int, parameters: Parameters, client_manager: ClientManager
+    ) -> List[Tuple[ClientProxy, FitIns]]:
+        """Configure the next round of training."""
+
+        # Sample clients
+        sample_size, min_num_clients = self.num_fit_clients(
+            client_manager.num_available()
+        )
+        clients = client_manager.sample(
+            num_clients=sample_size, min_num_clients=min_num_clients
+        )
+
+        # Create custom configs
+        n_clients = len(clients)
+
+        fit_configurations = []
+        for idx, client in enumerate(clients):
+            client_config = {'learning_rate': self.conf['learning_rate'],
+                             'round_seed': server_round,
+                             'round': server_round}
+
+            fit_configurations.append((client, FitIns(parameters, client_config)))
+
+        return fit_configurations
+
+    def num_fit_clients(self, num_available_clients: int) -> Tuple[int, int]:
+        """Return sample size and required number of clients."""
+        num_clients = int(num_available_clients * self.fraction_fit)
+        return max(num_clients, self.min_fit_clients), self.min_available_clients
+    
