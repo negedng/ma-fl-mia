@@ -83,18 +83,17 @@ def cut_idx_simple(max_shape, this_shape, dim, rand):
     min_subs = np.prod(steps_per_dim)
     cid = rand
     cid = cid % min_subs
-    if cid < min_subs:
-        cid_r = utils.generalized_positional_notation(cid, steps_per_dim)[dim]
+    cid_r = utils.generalized_positional_notation(cid, steps_per_dim)[dim]
 
-        start = (cid_r * to_len) % from_len
-        # no overlap
-        end = min(start + to_len, from_len)
-        start = end - to_len
+    start = (cid_r * to_len) % from_len
+    # no overlap
+    end = min(start + to_len, from_len)
+    start = end - to_len
 
-        p = list(range(from_len))
-        p = np.concatenate([p, p])
-        keep_idx = p[start : start + to_len]
-        return keep_idx
+    p = list(range(from_len))
+    p = np.concatenate([p, p])
+    keep_idx = p[start : start + to_len]
+    return keep_idx
 
 
 def take(a, new_shape, conf={}, rand=None):
@@ -113,7 +112,7 @@ def take(a, new_shape, conf={}, rand=None):
     return z
 
 
-def expand(B, A_shape, idx):
+def expand_with_index(B, A_shape, idx):
     """Expand B to the shape of A_shape and put values to the rows defined by idx"""
     if np.all(np.array(B.shape) == np.array(A_shape)):
         return B
@@ -128,6 +127,18 @@ def expand(B, A_shape, idx):
         C[j] = B[i]
     C = C.reshape(A_shape)
     return C
+
+
+def expand_matrix_conf(M, to_shape, conf={}, rand=None):
+    """Pad matrix with zeros to shape"""
+    M_shape = np.shape(M)
+    idx = [
+        cut_idx(to_shape, M_shape, i, conf=conf, rand=rand)
+        for i in range(len(M_shape))
+    ]
+
+    M_padded = expand_with_index(M, to_shape, idx)
+    return M_padded
 
 
 def crop_weights(w_from, w_to, conf={}, rand=None):
@@ -199,14 +210,9 @@ def aggregate_rmcid(
         layer_agg = np.zeros(max_ch)
         count_layer = np.zeros(max_ch)  # to average by num of models that size
         for l, num, rand in zip(layer_updates, num_examples_list, rands):
-            local_ch = np.shape(l)
-            idx = [
-                cut_idx(max_ch, local_ch, i, conf=conf, rand=rand)
-                for i in range(len(local_ch))
-            ]
-            l_padded = expand(l, max_ch, idx)
+            l_padded = expand_matrix_conf(l, max_ch, conf=conf, rand=rand)
             ones_pad = np.ones(np.shape(l))
-            ones_pad = expand(ones_pad, max_ch, idx)
+            ones_pad = expand_matrix_conf(ones_pad, max_ch, conf=conf, rand=rand)
             ones_pad = ones_pad * num
             count_layer = np.add(count_layer, ones_pad)
             layer_agg = np.add(layer_agg, l_padded)
@@ -240,7 +246,7 @@ def aggregate_rmcid(
     ]
     # Aggregate the layers
     agg_layers = [
-        aggregate_layer(l, num_examples_list, cids, total_model_shapes[i], conf=conf)
+        aggregate_layer(l, num_examples_list, rands, total_model_shapes[i], conf=conf)
         for i, l in enumerate(zip(*weighted_weights))
     ]
     return agg_layers
