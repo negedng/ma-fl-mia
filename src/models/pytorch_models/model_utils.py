@@ -190,9 +190,11 @@ class History:
         self.history = {"loss": [], "accuracy": []}
 
 
-def fit(model, data, conf, verbose=0, validation_data=None):
+def fit(model, data, conf, verbose=0, validation_data=None, round_config=None):
     model.train() # switch to training mode
     history = History()
+    if round_config is not None:
+        conf["learning_rate"] = round_config["learning_rate"]
     optimizer = get_optimizer(model.parameters(), conf)
     loss_fn = get_loss(conf)
     for epoch in range(conf["epochs"]):

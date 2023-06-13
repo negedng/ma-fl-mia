@@ -24,7 +24,7 @@
     "dp":false,
     "dp_clipnorm":null,
     "dp_noise":0.1,
-    "permutate_cuts": true,
+    "permutate_cuts": false,
     "cut_type": "simple",
     "data_normalize": true,
     "data_centralize": true,
@@ -33,5 +33,6 @@
     "aug_crop": 4,
     "aug_horizontal_flip":true,
     "norm_mode": "bn",
-    "hide_layers": "no"
+    "hide_layers": "no",
+    "scheduler": {"1":{"learning_rate_reduction":1.0},"5":{"learning_rate_reduction":0.1}}
 }

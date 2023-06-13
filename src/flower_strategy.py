@@ -22,7 +22,7 @@ from flwr.server.strategy.aggregate import aggregate
 import os
 import numpy as np
 
-from src import model_aggregation, models
+from src import model_aggregation, models, utils
 
 
 def get_example_model_shape(conf):
@@ -182,6 +182,24 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             models.save_model(model, save_path)
         return aggregated_result
 
+    def generate_client_config(self, cid: int, server_round:int, n_clients:int) -> Dict:
+        learning_rate = self.conf['learning_rate']
+        if "scheduler" in self.conf.keys():
+            last_update = str(max(int(x) for x in self.conf["scheduler"].keys() if int(x)<=server_round))
+            learning_rate = learning_rate * self.conf["scheduler"][last_update]["learning_rate_reduction"]
+
+        
+        if self.conf["permutate_cuts"]:
+            round_seed = utils.get_random_permutation(cid, n_clients, server_round)
+        else:
+            round_seed = cid
+
+        client_config = {'learning_rate': learning_rate,
+                             'round_seed': round_seed,
+                             'round': server_round}
+        
+        return client_config
+       
 
     def configure_fit(
         self, server_round: int, parameters: Parameters, client_manager: ClientManager
@@ -198,19 +216,52 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
 
         # Create custom configs
         n_clients = len(clients)
+        self.last_n_clients = n_clients
+
+        if "scheduler" in self.conf.keys():
+            if str(server_round) in self.conf["scheduler"].keys():
+                log(INFO, "Scheduler update")
 
         fit_configurations = []
         for idx, client in enumerate(clients):
-            client_config = {'learning_rate': self.conf['learning_rate'],
-                             'round_seed': server_round,
-                             'round': server_round}
+            
+            client_config = self.generate_client_config(int(client.cid), server_round, n_clients)
 
             fit_configurations.append((client, FitIns(parameters, client_config)))
 
         return fit_configurations
+
+    def configure_evaluate(
+        self, server_round: int, parameters: Parameters, client_manager: ClientManager
+    ) -> List[Tuple[ClientProxy, EvaluateIns]]:
+        """Configure the next round of evaluation."""
+        if self.fraction_evaluate == 0.0:
+            return []
+        config = {}
+        evaluate_ins = EvaluateIns(parameters, config)
+
+        # Sample clients
+        sample_size, min_num_clients = self.num_evaluation_clients(
+            client_manager.num_available()
+        )
+        clients = client_manager.sample(
+            num_clients=sample_size, min_num_clients=min_num_clients
+        )
+        evaluate_configurations = []
+        for idx, client in enumerate(clients):
+            
+            client_config = self.generate_client_config(int(client.cid), server_round, self.last_n_clients)
+
+            evaluate_configurations.append((client, FitIns(parameters, client_config)))
+
+        return evaluate_configurations
 
     def num_fit_clients(self, num_available_clients: int) -> Tuple[int, int]:
         """Return sample size and required number of clients."""
         num_clients = int(num_available_clients * self.fraction_fit)
         return max(num_clients, self.min_fit_clients), self.min_available_clients
     
+    def num_evaluation_clients(self, num_available_clients: int) -> Tuple[int, int]:
+        """Use a fraction of available clients for evaluation."""
+        num_clients = int(num_available_clients * self.fraction_evaluate)
+        return max(num_clients, self.min_evaluate_clients), self.min_available_clients

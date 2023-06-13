@@ -237,14 +237,17 @@ def aggregate_rmcid(
     num_examples_total = sum(num_examples_list)
 
     rands = [
-        utils.get_random_permutation(cid, total_clients, server_round) for cid in cids
+        utils.get_random_permutation(cid, len(cids), server_round) for cid in cids
     ]
+    if permutate:
+        rands = cids # permutation happens elsewhere
 
     # Create a list of weights, each multiplied by the related number of examples
     weighted_weights = [
         [layer * num_examples for layer in weights] for weights, num_examples in results
     ]
     # Aggregate the layers
+    print(cids, rands)
     agg_layers = [
         aggregate_layer(l, num_examples_list, rands, total_model_shapes[i], conf=conf)
         for i, l in enumerate(zip(*weighted_weights))

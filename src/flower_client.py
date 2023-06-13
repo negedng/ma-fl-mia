@@ -48,9 +48,7 @@ class FlowerClient(fl.client.NumPyClient):
             models.set_weights(self.model, cp_weights)
         elif self.conf["ma_mode"] == "rm-cid":
             if "round_seed" in config.keys() and self.conf["permutate_cuts"]:
-                rand = utils.get_random_permutation(
-                    self.cid, self.conf["num_clients"], config["round_seed"]
-                )
+                rand = config["round_seed"]
             else:
                 rand = self.cid
             cp_weights = model_aggregation.crop_weights(
@@ -85,7 +83,7 @@ class FlowerClient(fl.client.NumPyClient):
                 )
                 models.save_model(self.model, save_path)
 
-            history = models.fit(self.model, train_ds, self.conf)
+            history = models.fit(self.model, train_ds, self.conf, round_config=config)
 
             if np.isnan(
                 history.history["loss"][-1]
