@@ -34,5 +34,5 @@
     "aug_horizontal_flip":true,
     "norm_mode": "bn",
     "hide_layers": "no",
-    "scheduler": {"1":{"learning_rate_reduction":1.0},"5":{"learning_rate_reduction":0.1}}
+    "scheduler": {"1":{"learning_rate_reduction":1.0},"50":{"learning_rate_reduction":0.1}}
 }
