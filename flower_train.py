@@ -96,7 +96,7 @@ def train(conf, train_ds=None):
         initial_parameters=ndarrays_to_parameters(
             models.get_weights(initial_model)
         ),  # avoid smaller models as init
-        fraction_fit=1.0,  # Sample 10% of available clients for training
+        fraction_fit=conf["active_fraction"],  # Sample 10% of available clients for training
         fraction_evaluate=0.000001,  # Sample 5% of available clients for evaluation
         min_fit_clients=1,  # Never sample less than 10 clients for training
         min_evaluate_clients=1,  # Never sample less than 5 clients for evaluation

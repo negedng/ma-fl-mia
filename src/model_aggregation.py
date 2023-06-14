@@ -236,11 +236,8 @@ def aggregate_rmcid(
     num_examples_list = [num_examples for _, num_examples in results]
     num_examples_total = sum(num_examples_list)
 
-    rands = [
-        utils.get_random_permutation(cid, len(cids), server_round) for cid in cids
-    ]
-    if permutate:
-        rands = cids # permutation happens elsewhere
+    rands = utils.get_random_permutation_for_all(cids, server_round, len(cids), not(permutate))
+    rands = [rands[cid] for cid in cids]
 
     # Create a list of weights, each multiplied by the related number of examples
     weighted_weights = [

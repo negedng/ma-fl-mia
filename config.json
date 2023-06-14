@@ -1,5 +1,6 @@
 {
     "num_clients" : 10,
+    "active_fraction": 1.0,
     "paths" : {
         "models" : "data/models/ma-fl-mia/federated/",
         "code" : "data/codes/ma-fl-mia/flower_train.py"

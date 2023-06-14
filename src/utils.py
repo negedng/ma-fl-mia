@@ -44,6 +44,20 @@ def get_random_permutation(cid, total_clients, seed):
     return np.random.RandomState(seed=seed).permutation(total_clients)[cid]
 
 
+def get_random_permutation_for_all(cids, seed, total_clients=None, permutate=True):
+    if total_clients is None:
+        total_clients = len(cids)
+    if permutate:
+        rands = {
+            cid:get_random_permutation(idx%total_clients, total_clients, seed) for idx, cid in enumerate(sorted(cids))
+        }
+    else:
+        rands = {
+            cid:idx for idx, cid in enumerate(sorted(cids))
+        }
+    return rands
+
+
 def calculate_unit_size(cid, conf, len_train_data):
     if conf["ma_mode"] == "heterofl":
         if conf["scale_mode"] == "standard":
@@ -67,11 +81,11 @@ def calculate_unit_size(cid, conf, len_train_data):
                 unit_size = conf["unit_size"] // 2
         elif conf["scale_mode"] == "no":
             unit_size = conf["unit_size"]
-        elif conf["scale_mode"] == "half":
+        elif type(conf["scale_mode"]) == float and conf["scale_mode"] <= 1.0:
             if cid%2==0:
                 unit_size = conf["unit_size"]
             else:
-                unit_size = conf["unit_size"] // 2
+                unit_size = int(conf["unit_size"] * conf["scale_mode"])
         else:
             raise ValueError('scale mode not recognized{conf["scale_mode"]}')
     elif conf["ma_mode"] == "rm-cid":

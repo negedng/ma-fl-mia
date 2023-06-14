@@ -182,17 +182,11 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             models.save_model(model, save_path)
         return aggregated_result
 
-    def generate_client_config(self, cid: int, server_round:int, n_clients:int) -> Dict:
+    def generate_client_config(self, round_seed: int, server_round:int) -> Dict:
         learning_rate = self.conf['learning_rate']
         if "scheduler" in self.conf.keys():
             last_update = str(max(int(x) for x in self.conf["scheduler"].keys() if int(x)<=server_round))
             learning_rate = learning_rate * self.conf["scheduler"][last_update]["learning_rate_reduction"]
-
-        
-        if self.conf["permutate_cuts"]:
-            round_seed = utils.get_random_permutation(cid, n_clients, server_round)
-        else:
-            round_seed = cid
 
         client_config = {'learning_rate': learning_rate,
                              'round_seed': round_seed,
@@ -223,9 +217,13 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
                 log(INFO, "Scheduler update")
 
         fit_configurations = []
-        for idx, client in enumerate(clients):
-            
-            client_config = self.generate_client_config(int(client.cid), server_round, n_clients)
+        rands = utils.get_random_permutation_for_all([c.cid for c in clients],
+                                                     server_round, 
+                                                     self.last_n_clients, 
+                                                     self.conf["permutate_cuts"])
+        for client in clients:
+            client_config = self.generate_client_config(round_seed=rands[client.cid], server_round=server_round)
+
 
             fit_configurations.append((client, FitIns(parameters, client_config)))
 
@@ -248,9 +246,13 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             num_clients=sample_size, min_num_clients=min_num_clients
         )
         evaluate_configurations = []
-        for idx, client in enumerate(clients):
+        rands = utils.get_random_permutation_for_all([c.cid for c in clients],
+                                                     server_round, 
+                                                     self.last_n_clients, 
+                                                     self.conf["permutate_cuts"])
+        for client in clients:
             
-            client_config = self.generate_client_config(int(client.cid), server_round, self.last_n_clients)
+            client_config = self.generate_client_config(round_seed=rands[client.cid], server_round=server_round)
 
             evaluate_configurations.append((client, FitIns(parameters, client_config)))
 
