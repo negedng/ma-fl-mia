@@ -28,6 +28,7 @@ class FlowerClient(fl.client.NumPyClient):
         self.conf["local_unit_size"] = utils.calculate_unit_size(
             self.cid, self.conf, self.len_train_data
         )
+        # print(self.conf["local_unit_size"])
 
     def load_data(self, X, Y, X_test, Y_test):
         self.train_len = len(X)
@@ -60,6 +61,7 @@ class FlowerClient(fl.client.NumPyClient):
 
     def fit(self, weights, config):
         """Flower fit passing updated weights, data size and additional params in a dict"""
+        # return self.get_parameters(config), 1, {}
         try:
             self.set_parameters(weights, config)
 
@@ -135,24 +137,34 @@ class FlowerClient(fl.client.NumPyClient):
 
     def evaluate(self, weights, config):
         try:
-            self.set_parameters(weights, config)
+            
             test_ds = datasets.get_ds_from_np(self.test_data)
             test_ds = datasets.preprocess_data(test_ds, self.conf)
-
             # Local model eval
-            loss, local_accuracy = models.evaluate(self.model, test_ds, self.conf, verbose=0)
-            # Global model eval
-            test_ds = datasets.get_ds_from_np(self.test_data)
-            test_ds = datasets.preprocess_data(test_ds, self.conf)
-            g_model = models.init_model(
-                self.conf["unit_size"], conf=self.conf, weights=weights
-            )
-            loss, accuracy = models.evaluate(g_model, test_ds, self.conf, verbose=0)
-
+            self.set_parameters(weights, config)
+            local_loss, local_accuracy = models.evaluate(self.model, test_ds, self.conf, verbose=0)
+            if config["calculate_global"]:
+                # Global model eval
+                test_ds = datasets.get_ds_from_np(self.test_data)
+                test_ds = datasets.preprocess_data(test_ds, self.conf)
+                g_model = models.init_model(
+                    self.conf["unit_size"], conf=self.conf, weights=weights, static_bn=True
+                )
+                loss, accuracy = models.evaluate(g_model, test_ds, self.conf, verbose=0)
+                test_len = self.test_len
+            else:
+                loss = 0
+                test_len = 0
+                accuracy = 0
             return (
                 loss,
-                self.test_len,
-                {"local_accuracy": local_accuracy, "accuracy": accuracy},
+                test_len,
+                {"cid": self.cid,
+                 "local_rate":self.conf['local_unit_size']/self.conf['unit_size'], 
+                 "local_loss":local_loss, 
+                 "local_accuracy": local_accuracy, 
+                 "accuracy": accuracy,
+                 "loss":loss},
             )
         except Exception as e:
             log(

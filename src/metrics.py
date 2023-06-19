@@ -87,20 +87,25 @@ def attack_on_clients(
         model_path = os.path.join(
             model_root_path, model_id, "clients", str(cid), epoch_id
         )
-        local_unit_size = utils.calculate_unit_size(cid, conf, len(X_split[cid]))
-        conf["local_unit_size"] = local_unit_size
-        model = models.init_model(
-            unit_size=local_unit_size,
-            conf=conf,
-            model_path=model_path,
-            keep_scaling=True,
-        )
-        train_c_ds = datasets.get_ds_from_np((X_split[cid], Y_split[cid]))
-        train_c_ds = datasets.preprocess_data(train_c_ds, conf=conf)
-        r = evaluate(conf, model, train_c_ds, val_ds, test_ds, verbose=0)
-        r["cid"] = cid
-        r["local_unit_size"] = local_unit_size
-        res.append(r)
+        if not os.path.exists(model_path):
+            if conf["active_fraction"]==1.0:
+                print("Unexpected behavior: Client model missing")
+        else:
+            local_unit_size = utils.calculate_unit_size(cid, conf, len(X_split[cid]))
+            conf["local_unit_size"] = local_unit_size
+            model = models.init_model(
+                unit_size=local_unit_size,
+                conf=conf,
+                model_path=model_path,
+                keep_scaling=True,
+                static_bn=True
+            )
+            train_c_ds = datasets.get_ds_from_np((X_split[cid], Y_split[cid]))
+            train_c_ds = datasets.preprocess_data(train_c_ds, conf=conf)
+            r = evaluate(conf, model, train_c_ds, val_ds, test_ds, verbose=0)
+            r["cid"] = cid
+            r["local_unit_size"] = local_unit_size
+            res.append(r)
 
     all_train_acc = [a["train_acc"] for a in res]
     avgs = {

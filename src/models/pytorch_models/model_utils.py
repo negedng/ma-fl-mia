@@ -6,6 +6,7 @@ from tqdm import tqdm
 import os
 
 from src.models.pytorch_models.diao_cnn import DiaoCNN
+from src.models.pytorch_models.resnet import ResNet
 
 
 def get_cpu():
@@ -142,21 +143,22 @@ def get_model_architecture(unit_size, model_mode=None, conf={}, *args, **kwargs)
     else:
         local_unit_size = unit_size
         default_unit_size = conf["unit_size"]
+    if "norm_mode" not in conf.keys():
+        norm_mode = "bn"
+    else:
+        norm_mode = conf["norm_mode"]
+
+    default_hidden = [
+        default_unit_size,
+        default_unit_size * 2,
+        default_unit_size * 4,
+        default_unit_size * 8,
+    ]
+    model_rate = float(local_unit_size) / float(default_unit_size)
     if model_mode == "simple_CNN":
         raise NotImplementedError(f"Not implemented model mode {model_mode}")
     elif model_mode == "diao_CNN":
-        if "norm_mode" not in conf.keys():
-            norm_mode = "bn"
-        else:
-            norm_mode = conf["norm_mode"]
 
-        default_hidden = [
-            default_unit_size,
-            default_unit_size * 2,
-            default_unit_size * 4,
-            default_unit_size * 8,
-        ]
-        model_rate = float(local_unit_size) / float(default_unit_size)
         model = DiaoCNN(
             model_rate=model_rate,
             default_hidden=default_hidden,
@@ -166,12 +168,17 @@ def get_model_architecture(unit_size, model_mode=None, conf={}, *args, **kwargs)
         )
         return model
     elif model_mode == "alexnet":
-        model_rate = float(local_unit_size) / float(default_unit_size)
         raise NotImplementedError(f"Not implemented model mode {model_mode}")
     elif model_mode == "resnet18":
-        model_rate = float(local_unit_size) / float(default_unit_size)
-        raise NotImplementedError(f"Not implemented model mode {model_mode}")
-    raise ValueError(f"Unknown model type{model_mode}")
+        model = ResNet(
+            model_rate=model_rate,
+            default_hidden=default_hidden,
+            norm_mode=norm_mode,
+            *args,
+            **kwargs,
+        )
+        return model
+    raise ValueError(f"Unknown model type {model_mode}")
     return model
 
 
@@ -208,6 +215,8 @@ def fit(model, data, conf, verbose=0, validation_data=None, round_config=None):
             outputs = model(images)
             loss = loss_fn(outputs, labels)
             loss.backward()
+            if conf['clipnorm'] is not None:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), conf['clipnorm'])
             optimizer.step()
             # Metrics
             epoch_loss += loss.item() * images.size(0)

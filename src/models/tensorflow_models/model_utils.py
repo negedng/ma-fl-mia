@@ -72,10 +72,10 @@ def get_optimizer(conf={}):
     if "weight_decay" not in conf.keys():
         conf["weight_decay"] = 5e-4
     if conf["optimizer"]=="Adam":
-        return tf.keras.optimizers.Adam(learning_rate=conf["learning_rate"])
+        return tf.keras.optimizers.Adam(learning_rate=conf["learning_rate"], clipnorm=conf["clipnorm"])
     if conf["optimizer"]=="SGD":
         return tf.keras.optimizers.SGD(learning_rate=conf["learning_rate"],
-                                       decay=conf["weight_decay"])
+                                       decay=conf["weight_decay"], clipnorm=conf["clipnorm"])
     raise NotImplementedError(f'Optim not recognized: {conf["optimizer"]}')
 
 

@@ -24,9 +24,21 @@ import numpy as np
 
 from src import model_aggregation, models, utils
 
+def fit_metrics_aggregation_fn(fit_metrics):
+    losses = [a[1]["loss"] for a in fit_metrics]
+    return {"avg_train_loss":np.mean(losses), "std_train_loss":np.std(losses)}
+
+def evaluate_metrics_aggregation_fn(eval_metrics):
+    eval_res = {
+        "loss": sum([e[1]["loss"] for e in eval_metrics]),
+        "accuracy": sum([e[1]["accuracy"] for e in eval_metrics]),
+        "local_loss": np.mean([e[1]["local_loss"] for e in eval_metrics]),
+        "local_accuracy": np.mean([e[1]["local_accuracy"] for e in eval_metrics]),
+    }
+    return eval_res
 
 def get_example_model_shape(conf):
-    model = models.get_model_architecture(unit_size=conf["unit_size"], conf=conf)
+    model = models.get_model_architecture(unit_size=conf["unit_size"], conf=conf, static_bn=True)
     weights = models.get_weights(model)
     shapes = [np.shape(l) for l in weights]
     return shapes
@@ -46,8 +58,10 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             ),
             "w",
         ) as f:
-            f.write("epoch,val_loss\n")
-        super().__init__(*args, **kwargs)
+            f.write("epoch,loss,local_cid,local_model_rate,local_loss,local_accuracy,accuracy\n")
+        super().__init__(evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
+                         fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
+                         *args, **kwargs)
 
     def aggregate_fit(
         self,
@@ -67,6 +81,11 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples)
             for _, fit_res in results
         ]
+        for weights, n_samples in weights_results:
+            l_shapes = []
+            for layer in weights:
+                l_shapes.append(np.shape(layer))
+            #print(l_shapes)
         if self.conf["ma_mode"] == "heterofl":
             parameters_aggregated = ndarrays_to_parameters(
                 model_aggregation.aggregate_hetero(weights_results)
@@ -92,6 +111,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
         if self.fit_metrics_aggregation_fn:
             fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
             metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
+            log(INFO, "aggregated fit results %s", str(metrics_aggregated))
         elif server_round == 1:  # Only log this warning once
             log(WARNING, "No fit_metrics_aggregation_fn provided")
         self.aggregated_parameters = (
@@ -117,8 +137,10 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             ),
             "a",
         ) as f:
-            f.write(str(rnd) + "," + str(aggregated_result[0]) + "\n")
-
+            f.write(str(rnd) + "," + str(aggregated_result[0]))
+            for k,v in aggregated_result[1].items():
+                f.write(","+str(v))
+            f.write("\n")
         if (
             self.aggregated_parameters is not None
             and aggregated_result[0] < self.best_loss
@@ -132,7 +154,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
                 self.aggregated_parameters
             )
             model = models.init_model(
-                self.conf["unit_size"], conf=self.conf, weights=aggregated_weights
+                self.conf["unit_size"], conf=self.conf, weights=aggregated_weights, static_bn=True
             )
             models.save_model(model, save_path)
         if rnd % 10 == 0:
@@ -147,7 +169,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
                 self.aggregated_parameters
             )
             model = models.init_model(
-                self.conf["unit_size"], conf=self.conf, weights=aggregated_weights
+                self.conf["unit_size"], conf=self.conf, weights=aggregated_weights, static_bn=True
             )
             models.save_model(model, save_path)
         if rnd < self.conf["rounds"] and rnd >= (
@@ -164,7 +186,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
                 self.aggregated_parameters
             )
             model = models.init_model(
-                self.conf["unit_size"], conf=self.conf, weights=aggregated_weights
+                self.conf["unit_size"], conf=self.conf, weights=aggregated_weights, static_bn=True
             )
             models.save_model(model, save_path)
         if rnd == self.conf["rounds"]:
@@ -177,7 +199,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
                 self.aggregated_parameters
             )
             model = models.init_model(
-                self.conf["unit_size"], conf=self.conf, weights=aggregated_weights
+                self.conf["unit_size"], conf=self.conf, weights=aggregated_weights, static_bn=True
             )
             models.save_model(model, save_path)
         return aggregated_result
@@ -212,21 +234,24 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
         n_clients = len(clients)
         self.last_n_clients = n_clients
 
-        if "scheduler" in self.conf.keys():
-            if str(server_round) in self.conf["scheduler"].keys():
-                log(INFO, "Scheduler update")
+
 
         fit_configurations = []
         rands = utils.get_random_permutation_for_all([c.cid for c in clients],
                                                      server_round, 
                                                      self.last_n_clients, 
                                                      self.conf["permutate_cuts"])
+        print(rands)
         for client in clients:
             client_config = self.generate_client_config(round_seed=rands[client.cid], server_round=server_round)
 
 
             fit_configurations.append((client, FitIns(parameters, client_config)))
 
+        if "scheduler" in self.conf.keys():
+            if str(server_round) in self.conf["scheduler"].keys():
+                log(INFO, f"Scheduler update, {client_config}")
+                
         return fit_configurations
 
     def configure_evaluate(
@@ -250,9 +275,14 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
                                                      server_round, 
                                                      self.last_n_clients, 
                                                      self.conf["permutate_cuts"])
-        for client in clients:
+        print(rands)
+        for idx, client in enumerate(clients):
             
             client_config = self.generate_client_config(round_seed=rands[client.cid], server_round=server_round)
+            if idx==0:
+                client_config["calculate_global"] = True
+            else:
+                client_config["calculate_global"] = False
 
             evaluate_configurations.append((client, FitIns(parameters, client_config)))
 
@@ -267,3 +297,6 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
         """Use a fraction of available clients for evaluation."""
         num_clients = int(num_available_clients * self.fraction_evaluate)
         return max(num_clients, self.min_evaluate_clients), self.min_available_clients
+    
+
+    

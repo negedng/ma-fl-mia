@@ -132,7 +132,7 @@ def train(conf, train_ds=None):
     )
     model_path = os.path.join(conf["paths"]["models"], conf["model_id"], "saved_model")
     model = models.init_model(
-        unit_size=conf["unit_size"], conf=conf, model_path=model_path
+        unit_size=conf["unit_size"], conf=conf, model_path=model_path, static_bn=True
     )
     return model, conf
 

@@ -24,6 +24,10 @@ def get_norm(unit_size, norm_mode, static_bn):
         )
     elif norm_mode == "ln":
         norm = nn.GroupNorm(1, unit_size)
+    elif norm_mode == "in":
+        norm = nn.GroupNorm(unit_size, unit_size)
+    elif norm_mode == "gn":
+        norm = nn.GroupNorm(4, unit_size)
     else:
         norm = nn.Identity()
     return norm
