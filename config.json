@@ -13,9 +13,10 @@
     "batch_size" : 128,
     "optimizer": "Adam",
     "learning_rate" : 0.001,
+    "clipnorm": null,
     "weight_clients": false,
     "split_mode": "homogen",
-    "dirichlet_alpha": 1.0,
+    "dirichlet_alpha": 0.5,
     "ma_mode": "rm-cid",
     "unit_size" : 64,
     "model_mode": "diao_CNN",
@@ -29,11 +30,10 @@
     "cut_type": "simple",
     "data_normalize": true,
     "data_centralize": true,
-    "save_last_clients": 5,
+    "save_last_clients": 2,
     "aug": true,
     "aug_crop": 4,
     "aug_horizontal_flip":true,
     "norm_mode": "bn",
-    "hide_layers": "no",
-    "scheduler": {"1":{"learning_rate_reduction":1.0},"50":{"learning_rate_reduction":0.1}}
+    "hide_layers": "no"
 }

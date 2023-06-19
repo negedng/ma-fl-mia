@@ -69,8 +69,9 @@ def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", *args, **k
     for i in range(len(idx_split)):
         idx_split[i] = np.sort(idx_split[i])
 
-    X_split = np.array([X[idx] for idx in idx_split])
-    Y_split = np.array([Y[idx] for idx in idx_split])
+
+    X_split = [X[idx] for idx in idx_split]
+    Y_split = [Y[idx] for idx in idx_split]
     return X_split, Y_split
 
 
