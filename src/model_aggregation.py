@@ -244,7 +244,7 @@ def aggregate_rmcid(
         [layer * num_examples for layer in weights] for weights, num_examples in results
     ]
     # Aggregate the layers
-    print(cids, rands)
+    # print(cids, rands)
     agg_layers = [
         aggregate_layer(l, num_examples_list, rands, total_model_shapes[i], conf=conf)
         for i, l in enumerate(zip(*weighted_weights))

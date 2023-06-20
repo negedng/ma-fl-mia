@@ -162,7 +162,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             save_path = os.path.join(
                 self.conf["paths"]["models"],
                 self.conf["model_id"],
-                f"saved_model_{str(rnd)}",
+                f"saved_model_checkpoint",
             )
             log(INFO, "Saving model to %s", save_path)
             aggregated_weights = fl.common.parameters_to_ndarrays(
@@ -241,7 +241,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
                                                      server_round, 
                                                      self.last_n_clients, 
                                                      self.conf["permutate_cuts"])
-        print(rands)
+        # print(rands)
         for client in clients:
             client_config = self.generate_client_config(round_seed=rands[client.cid], server_round=server_round)
 
@@ -275,7 +275,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
                                                      server_round, 
                                                      self.last_n_clients, 
                                                      self.conf["permutate_cuts"])
-        print(rands)
+        # print(rands)
         for idx, client in enumerate(clients):
             
             client_config = self.generate_client_config(round_seed=rands[client.cid], server_round=server_round)
