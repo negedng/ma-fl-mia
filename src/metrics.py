@@ -3,6 +3,7 @@ import numpy as np
 from src import models, attacks, utils
 import os
 
+from src.models import model_utils
 from src.datasets import data_allocation
 from src import datasets
 
@@ -93,7 +94,7 @@ def attack_on_clients(
         else:
             local_unit_size = utils.calculate_unit_size(cid, conf, len(X_split[cid]))
             conf["local_unit_size"] = local_unit_size
-            model = models.init_model(
+            model = model_utils.init_model(
                 unit_size=local_unit_size,
                 conf=conf,
                 model_path=model_path,

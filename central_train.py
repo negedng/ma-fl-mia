@@ -6,6 +6,7 @@ from src.datasets import data_allocation
 from src import datasets
 
 from src import utils, models, attacks, metrics
+from src.models import model_utils
 from exp import setups
 
 
@@ -17,7 +18,7 @@ def train(conf, train_ds=None, val_ds=None, test_ds=None):
     if train_ds is None:
         train_ds, val_ds, test_ds = datasets.load_data(conf=conf)
     print("loading model")
-    model = models.init_model(conf["unit_size"], conf=conf)
+    model = model_utils.init_model(conf["unit_size"], conf=conf)
     models.print_summary(model)
     if conf["aug"]:
         train_ds = datasets.aug_data(train_ds, conf=conf)

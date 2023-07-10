@@ -23,6 +23,7 @@ import os
 import numpy as np
 
 from src import model_aggregation, models, utils
+from src.models import model_utils
 
 def fit_metrics_aggregation_fn(fit_metrics):
     losses = [a[1]["loss"] for a in fit_metrics]
@@ -38,7 +39,7 @@ def evaluate_metrics_aggregation_fn(eval_metrics):
     return eval_res
 
 def get_example_model_shape(conf):
-    model = models.get_model_architecture(unit_size=conf["unit_size"], conf=conf, static_bn=True)
+    model = model_utils.get_model_architecture(unit_size=conf["unit_size"], conf=conf, static_bn=True)
     weights = models.get_weights(model)
     shapes = [np.shape(l) for l in weights]
     return shapes
@@ -58,7 +59,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             ),
             "w",
         ) as f:
-            f.write("epoch,loss,local_cid,local_model_rate,local_loss,local_accuracy,accuracy\n")
+            f.write("epoch,loss,accuracy,local_loss,local_accuracy\n")
         super().__init__(evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
                          fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
                          *args, **kwargs)
@@ -91,15 +92,15 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
                 model_aggregation.aggregate_hetero(weights_results)
             )
         elif self.conf["ma_mode"] == "rm-cid":
-            cid_results = [fit_res.metrics["client_id"] for _, fit_res in results]
+            cids = [fit_res.metrics["client_id"] for _, fit_res in results]
+            rands = utils.get_random_permutation_for_all(cids, server_round, len(cids), not(self.conf["permutate_cuts"]))
+            rands = [rands[cid] for cid in cids]
+            
             parameters_aggregated = ndarrays_to_parameters(
                 model_aggregation.aggregate_rmcid(
                     weights_results,
-                    cid_results,
+                    rands,
                     self.global_model_shapes,
-                    server_round,
-                    total_clients=self.conf["num_clients"],
-                    permutate=self.conf["permutate_cuts"],
                     conf=self.conf,
                 )
             )
@@ -137,7 +138,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             ),
             "a",
         ) as f:
-            f.write(str(rnd) + "," + str(aggregated_result[0]))
+            f.write(str(rnd) + ",")
             for k,v in aggregated_result[1].items():
                 f.write(","+str(v))
             f.write("\n")
@@ -153,7 +154,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             aggregated_weights = fl.common.parameters_to_ndarrays(
                 self.aggregated_parameters
             )
-            model = models.init_model(
+            model = model_utils.init_model(
                 self.conf["unit_size"], conf=self.conf, weights=aggregated_weights, static_bn=True
             )
             models.save_model(model, save_path)
@@ -168,7 +169,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             aggregated_weights = fl.common.parameters_to_ndarrays(
                 self.aggregated_parameters
             )
-            model = models.init_model(
+            model = model_utils.init_model(
                 self.conf["unit_size"], conf=self.conf, weights=aggregated_weights, static_bn=True
             )
             models.save_model(model, save_path)
@@ -185,7 +186,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             aggregated_weights = fl.common.parameters_to_ndarrays(
                 self.aggregated_parameters
             )
-            model = models.init_model(
+            model = model_utils.init_model(
                 self.conf["unit_size"], conf=self.conf, weights=aggregated_weights, static_bn=True
             )
             models.save_model(model, save_path)
@@ -198,7 +199,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             aggregated_weights = fl.common.parameters_to_ndarrays(
                 self.aggregated_parameters
             )
-            model = models.init_model(
+            model = model_utils.init_model(
                 self.conf["unit_size"], conf=self.conf, weights=aggregated_weights, static_bn=True
             )
             models.save_model(model, save_path)

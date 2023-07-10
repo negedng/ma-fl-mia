@@ -4,7 +4,7 @@ import numpy as np
 from src.models.tensorflow_models.layer_utils import get_scaler, get_norm
 
 
-def alexnet(
+def get_alexnet(
     unit_size=64,
     num_classes=10,
     input_shape=(32, 32, 3),

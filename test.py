@@ -5,6 +5,7 @@ import numpy as np
 import json
 
 from src import utils, models, attacks, metrics
+from src.models import model_utils
 from src.datasets import data_allocation
 from src import datasets
 
@@ -39,7 +40,7 @@ def test(model_path, overwrite=False):
     else:
         weights_path = os.path.join(model_path, "saved_model_best")
 
-    model = models.init_model(
+    model = model_utils.init_model(
         unit_size=conf["unit_size"], conf=conf, model_path=weights_path
     )
 
@@ -94,7 +95,7 @@ def test_all(model_path):
             continue
         idx = os.path.basename(weights_path)
         res[idx] = {}
-        model = models.init_model(
+        model = model_utils.init_model(
             unit_size=conf["unit_size"], conf=conf, model_path=weights_path
         )
 

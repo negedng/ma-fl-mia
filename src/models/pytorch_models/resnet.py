@@ -81,3 +81,5 @@ class ResNet(nn.Module):
         out = self.linear(out)
         return out
 
+def get_resnet18(*args, **kwargs):
+    return ResNet(*args, **kwargs)

@@ -115,7 +115,7 @@ def make_layer(
 
 def resnet(
     blocks_per_layer,
-    unit_size=64,
+    default_hidden=[64, 128, 256, 512],
     num_classes=10,
     input_shape=(32, 32, 3),
     use_scaler=True,
@@ -125,6 +125,7 @@ def resnet(
     static_bn=False,
 ):
     #!TODO: there is a problem with scaling
+    hidden_size = [int(np.ceil(model_rate * x)) for x in default_hidden]
     scaler_rate = model_rate
 
     inputs = tf.keras.Input(shape=input_shape)
@@ -133,7 +134,7 @@ def resnet(
     # small images have different ResNet: https://github.com/raphaelreme/torch-resnet/blob/main/torch_resnet/resnet.py
     if max(input_shape) < 100:
         x = tf.keras.layers.Conv2D(
-            filters=unit_size,
+            filters=hidden_size[0],
             kernel_size=3,
             strides=1,
             use_bias=False,
@@ -143,7 +144,7 @@ def resnet(
         )(x)
     else:
         x = tf.keras.layers.Conv2D(
-            filters=unit_size,
+            filters=hidden_size[0],
             kernel_size=7,
             strides=2,
             use_bias=False,
@@ -156,10 +157,10 @@ def resnet(
             pool_size=3, strides=2, padding="same", name="maxpool"
         )(x)
 
-    x = make_layer(x, unit_size, blocks_per_layer[0], name="layer1")
-    x = make_layer(x, unit_size * 2, blocks_per_layer[1], stride=2, name="layer2")
-    x = make_layer(x, unit_size * 4, blocks_per_layer[2], stride=2, name="layer3")
-    x = make_layer(x, unit_size * 8, blocks_per_layer[3], stride=2, name="layer4")
+    x = make_layer(x, hidden_size[0], blocks_per_layer[0], name="layer1")
+    x = make_layer(x, hidden_size[1], blocks_per_layer[1], stride=2, name="layer2")
+    x = make_layer(x, hidden_size[2], blocks_per_layer[2], stride=2, name="layer3")
+    x = make_layer(x, hidden_size[3], blocks_per_layer[3], stride=2, name="layer4")
 
     x = get_scaler(use_scaler, scaler_rate, keep_scaling, name=f"scaler1")(x)
     x = get_norm(norm_mode, static_bn, name=f"bn1")(x)
@@ -181,5 +182,5 @@ def resnet(
     return model
 
 
-def resnet18(**kwargs):
+def get_resnet18(**kwargs):
     return resnet([2, 2, 2, 2], **kwargs)

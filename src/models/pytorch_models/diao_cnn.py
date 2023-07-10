@@ -26,6 +26,7 @@ class DiaoCNN(nn.Module):
         super(DiaoCNN, self).__init__()
 
         hidden_sizes = [int(np.ceil(model_rate * x)) for x in default_hidden]
+        # hidden_sizes = [int(np.ceil(model_rate * x)) if i==2 else x for i,x in enumerate(default_hidden)]
         scaler_rate = model_rate
 
         norm = get_norm(hidden_sizes[0], norm_mode=norm_mode, static_bn=static_bn)
@@ -72,3 +73,6 @@ class DiaoCNN(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         output = self.blocks(x)
         return output
+
+def get_diao_CNN(*args, **kwargs):
+    return DiaoCNN(*args, **kwargs)

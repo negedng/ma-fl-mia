@@ -4,7 +4,7 @@ import numpy as np
 from src.models.tensorflow_models.layer_utils import get_scaler, get_norm
 
 
-def diao_CNN(
+def get_diao_CNN(
     model_rate=1,
     num_classes=10,
     input_shape=(32, 32, 3),

@@ -1,6 +1,7 @@
 import numpy as np
 import itertools
 from src import utils
+import pdb
 
 
 def cut_idx(max_shape, this_shape, dim, conf, rand):
@@ -84,7 +85,6 @@ def cut_idx_simple(max_shape, this_shape, dim, rand):
     cid = rand
     cid = cid % min_subs
     cid_r = utils.generalized_positional_notation(cid, steps_per_dim)[dim]
-
     start = (cid_r * to_len) % from_len
     # no overlap
     end = min(start + to_len, from_len)
@@ -191,11 +191,8 @@ def aggregate_hetero(results):
 
 def aggregate_rmcid(
     results,
-    cids,
+    rands,
     total_model_shapes,
-    server_round,
-    total_clients,
-    permutate=True,
     conf={},
 ):
     """Expand client model weights missing 1 row&col and aggregate"""
@@ -225,9 +222,9 @@ def aggregate_rmcid(
 
             for l in layer_updates:
                 print(np.shape(l))
-            print(max_ch, local_ch)
-            print(idx)
-            print(cids)
+            print(max_ch, count_layer.shape)
+            #print(idx)
+            print(rands)
             raise ValueError("Diving with 0")
         layer_agg = layer_agg / count_layer
         return layer_agg
@@ -235,9 +232,6 @@ def aggregate_rmcid(
     # Calculate the total number of examples used during training
     num_examples_list = [num_examples for _, num_examples in results]
     num_examples_total = sum(num_examples_list)
-
-    rands = utils.get_random_permutation_for_all(cids, server_round, len(cids), not(permutate))
-    rands = [rands[cid] for cid in cids]
 
     # Create a list of weights, each multiplied by the related number of examples
     weighted_weights = [

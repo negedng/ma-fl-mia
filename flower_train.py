@@ -21,6 +21,7 @@ from src import datasets
 from src.flower_client import FlowerClient
 from src.flower_strategy import SaveAndLogStrategy
 from src import models, attacks, metrics
+from src.models import model_utils
 from exp import setups
 
 # DP wrappers
@@ -82,7 +83,7 @@ def train(conf, train_ds=None):
         dirichlet_alpha=conf["dirichlet_alpha"],
     )
 
-    initial_model = models.init_model(
+    initial_model = model_utils.init_model(
         unit_size=conf["unit_size"],
         static_bn=True,
         conf=conf,
@@ -131,7 +132,7 @@ def train(conf, train_ds=None):
         client_resources=conf["client_resources"],
     )
     model_path = os.path.join(conf["paths"]["models"], conf["model_id"], "saved_model")
-    model = models.init_model(
+    model = model_utils.init_model(
         unit_size=conf["unit_size"], conf=conf, model_path=model_path, static_bn=True
     )
     return model, conf
@@ -172,6 +173,7 @@ if __name__ == "__main__":
         for k, v in cc.items():
             conf[k] = v
         print(conf)
+        train_ds, val_ds, test_ds = datasets.load_data(conf=conf)
         model, model_conf = train(conf, train_ds)
 
         print("Training completed, model evaluation")

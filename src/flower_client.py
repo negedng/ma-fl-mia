@@ -4,6 +4,7 @@ from logging import ERROR, INFO
 import numpy as np
 import os
 from src import model_aggregation, models, utils
+from src.models import model_utils
 from src import datasets
 
 
@@ -16,7 +17,7 @@ class FlowerClient(fl.client.NumPyClient):
 
     def init_model(self):
         self.calculate_unit_size()
-        model = models.init_model(
+        model = model_utils.init_model(
             self.conf["local_unit_size"],
             conf=self.conf,
             model_path=None,
@@ -147,7 +148,7 @@ class FlowerClient(fl.client.NumPyClient):
                 # Global model eval
                 test_ds = datasets.get_ds_from_np(self.test_data)
                 test_ds = datasets.preprocess_data(test_ds, self.conf)
-                g_model = models.init_model(
+                g_model = model_utils.init_model(
                     self.conf["unit_size"], conf=self.conf, weights=weights, static_bn=True
                 )
                 loss, accuracy = models.evaluate(g_model, test_ds, self.conf, verbose=0)
