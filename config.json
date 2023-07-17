@@ -35,5 +35,6 @@
     "aug_crop": 4,
     "aug_horizontal_flip":true,
     "norm_mode": "bn",
-    "hide_layers": "no"
+    "hide_layers": "no",
+    "dataset": "CIFAR10"
 }

@@ -35,11 +35,11 @@ def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", *args, **k
                 split = [4 / 50] * 10 + [1 / 50] * 10
             elif num_clients == 10:
                 split = [9 / 50] * 5 + [1 / 50] * 5
-            split = [split] * 10
+            split = [split] * num_classes
             split = np.array(split)
         elif split_mode == "homogen":
             split = [1 / num_clients] * num_clients
-            split = [split] * 10
+            split = [split] * num_classes
             split = np.array(split)
         else:
             ValueError(f"Split mode not recognized {split_mode}")

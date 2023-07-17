@@ -1,8 +1,23 @@
 
 from . import get_alexnet, get_diao_CNN, get_resnet18, get_simple_CNN
 from . import load_model_weights, set_weights, prepare_model
+from src import TF_MODELS
 
 def get_model_architecture(unit_size, model_mode=None, conf={}, *args, **kwargs):
+    if ("dataset" not in conf.keys()) or conf["dataset"]=="CIFAR10":
+        num_classes = 10
+        if TF_MODELS:
+            input_shape = (32,32,3)
+        else:
+            input_shape = (3,32,32)
+    elif conf["dataset"]=="CIFAR100":
+        num_classes = 100
+        if TF_MODELS:
+            input_shape = (32,32,3)
+        else:
+            input_shape = (3,32,32)       
+    kwargs["num_classes"] = num_classes
+    kwargs["input_shape"] = input_shape
     if (model_mode is None) and ("model_mode" in conf.keys()):
         model_mode = conf["model_mode"]
 

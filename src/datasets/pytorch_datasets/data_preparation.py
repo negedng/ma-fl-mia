@@ -6,15 +6,17 @@ from PIL import Image
 import copy
 
 
-def load_data(dataset_mode="cifar10", val_split=True, conf={}):
+def load_data(dataset_mode="CIFAR10", val_split=True, conf={}):
     """Load datasets into dataset object"""
+    if "dataset" in conf.keys():
+        dataset_mode = conf["dataset"]
 
     if "val_split" in conf.keys():
         val_split = conf["val_split"]
     if "seed" not in conf.keys():
         conf["seed"] = None
 
-    if dataset_mode == "cifar10":
+    if dataset_mode == "CIFAR10":
         trainset = torchvision.datasets.CIFAR10(
             "./dump/dataset", train=True, download=True
         )
@@ -34,7 +36,26 @@ def load_data(dataset_mode="cifar10", val_split=True, conf={}):
             valset = copy.deepcopy(testset)
 
         return trainset, valset, testset
+    if dataset_mode == "CIFAR100":
+        trainset = torchvision.datasets.CIFAR100(
+            "./dump/dataset", train=True, download=True
+        )
+        testset = torchvision.datasets.CIFAR100(
+            "./dump/dataset", train=False, download=True
+        )
 
+        if val_split:
+            len_val = len(trainset) / 20
+            len_train = len(trainset) - len_val
+            trainset, valset = random_split(
+                trainset,
+                [len_train, len_val],
+                torch.Generator().manual_seed(conf["seed"]),
+            )
+        else:
+            valset = copy.deepcopy(testset)
+
+        return trainset, valset, testset        
     raise NotImplementedError(dataset_mode)
 
 

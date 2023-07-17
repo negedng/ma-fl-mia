@@ -56,12 +56,15 @@ def preprocess_data(data, conf, shuffle=False, cache=False):
 
 
 def load_data(
-    dataset_mode="cifar10", val_split=True, conf={}
+    dataset_mode="CIFAR10", val_split=True, conf={}
 ):
+    if "dataset" in conf.keys():
+        dataset_mode = conf["dataset"]
+
     if "val_split" in conf.keys():
         val_split = conf["val_split"]
 
-    if dataset_mode == "cifar10":
+    if dataset_mode == "CIFAR10":
         if val_split:
             train_ds, val_ds, test_ds = tfds.load(
                 "cifar10",
@@ -71,4 +74,5 @@ def load_data(
         else:
             train_ds, val_ds, test_ds = tfds.load("cifar10", split=["train", "test", "test"], as_supervised=True)
 
-    return train_ds, val_ds, test_ds
+        return train_ds, val_ds, test_ds
+    raise NotImplementedError("dataset mode not recognized")
