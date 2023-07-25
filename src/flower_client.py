@@ -45,7 +45,7 @@ class FlowerClient(fl.client.NumPyClient):
         """set weights either as a simple update or model agnostic way"""
         if self.conf["ma_mode"] == "heterofl":
             cp_weights = model_aggregation.crop_weights(
-                weights, models.get_weights(self.model)
+                weights, models.get_weights(self.model), conf=self.conf, rand=0
             )
             models.set_weights(self.model, cp_weights)
         elif self.conf["ma_mode"] == "rm-cid":
@@ -62,9 +62,16 @@ class FlowerClient(fl.client.NumPyClient):
 
     def fit(self, weights, config):
         """Flower fit passing updated weights, data size and additional params in a dict"""
-        # return self.get_parameters(config), 1, {}
+        # return self.get_parameters(config), 1, {"client_id": self.cid, "loss":-1}
         try:
             self.set_parameters(weights, config)
+            
+            # !TODO debug mode
+            #ws = self.get_parameters(config)
+            #if self.cid == 1:
+            #    for i in range(len(ws)):
+            #        ws[i] = ws[i] * 2
+            #return ws, 1, {"client_id": self.cid, "loss":-1}
 
             train_ds = datasets.get_ds_from_np(self.train_data)
             if self.conf["aug"]:

@@ -90,13 +90,15 @@ def train(conf, train_ds=None):
         model_path=conf["continue_from"],
     )
     models.print_summary(initial_model)
+    ws = models.get_weights(initial_model)
+    initial_parameters = ndarrays_to_parameters(
+            ws
+        )
 
     # Create FedAvg strategy
     strategy = SaveAndLogStrategy(
         conf=conf,
-        initial_parameters=ndarrays_to_parameters(
-            models.get_weights(initial_model)
-        ),  # avoid smaller models as init
+        initial_parameters=initial_parameters,  # avoid smaller models as init
         fraction_fit=conf["active_fraction"],  # Sample 10% of available clients for training
         fraction_evaluate=0.000001,  # Sample 5% of available clients for evaluation
         min_fit_clients=1,  # Never sample less than 10 clients for training

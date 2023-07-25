@@ -22,6 +22,7 @@ class DiaoCNN(nn.Module):
         keep_scaling=False,
         norm_mode="bn",
         default_hidden=[64, 128, 256, 512],
+        use_bias=True
     ):
         super(DiaoCNN, self).__init__()
 
@@ -35,7 +36,7 @@ class DiaoCNN(nn.Module):
         )
 
         blocks = [
-            nn.Conv2d(input_shape[0], hidden_sizes[0], 3, 1, 1),
+            nn.Conv2d(input_shape[0], hidden_sizes[0], 3, 1, 1, bias=use_bias),
             scaler,
             norm,
             nn.ReLU(inplace=True),
@@ -53,7 +54,7 @@ class DiaoCNN(nn.Module):
             )
             blocks.extend(
                 [
-                    nn.Conv2d(hidden_sizes[i], hidden_sizes[i + 1], 3, 1, 1),
+                    nn.Conv2d(hidden_sizes[i], hidden_sizes[i + 1], 3, 1, 1, bias=use_bias),
                     scaler,
                     norm,
                     nn.ReLU(inplace=True),
@@ -65,7 +66,7 @@ class DiaoCNN(nn.Module):
             [
                 nn.AdaptiveAvgPool2d(1),
                 nn.Flatten(),
-                nn.Linear(hidden_sizes[-1], num_classes),
+                nn.Linear(hidden_sizes[-1], num_classes, bias=use_bias),
             ]
         )
         self.blocks = nn.Sequential(*blocks)

@@ -88,25 +88,26 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
                 l_shapes.append(np.shape(layer))
             #print(l_shapes)
         if self.conf["ma_mode"] == "heterofl":
-            parameters_aggregated = ndarrays_to_parameters(
-                model_aggregation.aggregate_hetero(weights_results)
-            )
+            weights_aggregated = model_aggregation.aggregate_hetero(weights_results)
         elif self.conf["ma_mode"] == "rm-cid":
             cids = [fit_res.metrics["client_id"] for _, fit_res in results]
-            rands = utils.get_random_permutation_for_all(cids, server_round, len(cids), not(self.conf["permutate_cuts"]))
+            # !TODO set same replacement here
+            rands = utils.get_random_permutation_for_all(cids, server_round, len(cids), self.conf["permutate_cuts"])
             rands = [rands[cid] for cid in cids]
             
-            parameters_aggregated = ndarrays_to_parameters(
-                model_aggregation.aggregate_rmcid(
+            weights_aggregated = model_aggregation.aggregate_rmcid(
                     weights_results,
                     rands,
                     self.global_model_shapes,
                     conf=self.conf,
                 )
-            )
+            
         else:
-            parameters_aggregated = ndarrays_to_parameters(aggregate(weights_results))
+            weights_aggregated = aggregate(weights_results)
 
+        parameters_aggregated = ndarrays_to_parameters(weights_aggregated)
+        #import pdb
+        #pdb.set_trace()
         # Aggregate custom metrics if aggregation fn was provided
         metrics_aggregated = {}
         if self.fit_metrics_aggregation_fn:
@@ -138,7 +139,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             ),
             "a",
         ) as f:
-            f.write(str(rnd) + ",")
+            f.write(str(rnd))
             for k,v in aggregated_result[1].items():
                 f.write(","+str(v))
             f.write("\n")
