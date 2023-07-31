@@ -21,7 +21,7 @@ def dirichlet_split(
     return split_norm
 
 
-def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", *args, **kwargs):
+def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", seed=None, *args, **kwargs):
     """Split data in X,Y between 'num_clients' number of clients"""
     assert len(X) == len(Y)
     classes = np.unique(Y)
@@ -49,6 +49,7 @@ def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", *args, **k
 
     for i, cls in enumerate(classes):
         idx_cls = np.where(Y == cls)[0]
+        np.random.RandomState(seed=seed).shuffle(idx_cls)
         cls_num_example = len(idx_cls)
         cls_split = np.rint(split[i] * cls_num_example)
 
@@ -69,9 +70,11 @@ def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", *args, **k
     for i in range(len(idx_split)):
         idx_split[i] = np.sort(idx_split[i])
 
-
+    import pdb
     X_split = [X[idx] for idx in idx_split]
     Y_split = [Y[idx] for idx in idx_split]
+    pdb.set_trace()
+
     return X_split, Y_split
 
 
