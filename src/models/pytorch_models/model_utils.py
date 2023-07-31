@@ -4,7 +4,7 @@ import torch
 import numpy as np
 from tqdm import tqdm
 import os
-
+import copy
 
 def get_cpu():
     return torch.device("cpu")
@@ -149,6 +149,8 @@ def fit(model, data, conf, verbose=0, validation_data=None, round_config=None):
         conf["learning_rate"] = round_config["learning_rate"]
     optimizer = get_optimizer(model.parameters(), conf)
     loss_fn = get_loss(conf)
+    if conf["proximal_mu"]!=0:
+        global_params = copy.deepcopy(model).parameters()
     for epoch in range(conf["epochs"]):
         iterator = data
         if verbose>0.8:
@@ -158,7 +160,13 @@ def fit(model, data, conf, verbose=0, validation_data=None, round_config=None):
             images, labels = images.to(get_device(conf)), labels.to(get_device(conf))
             optimizer.zero_grad()
             outputs = model(images)
-            loss = loss_fn(outputs, labels)
+            if conf["proximal_mu"]!=0:
+                proximal_term = 0
+                for local_weights, global_weights in zip(model.parameters(), global_params):
+                    proximal_term += (local_weights - global_weights).norm(2)
+                loss = loss_fn(outputs, labels) + (conf["proximal_mu"] / 2) * proximal_term
+            else:
+                loss = loss_fn(outputs, labels)
             loss.backward()
             if conf['clipnorm'] is not None:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), conf['clipnorm'])

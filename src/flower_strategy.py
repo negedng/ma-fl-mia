@@ -44,12 +44,23 @@ def get_example_model_shape(conf):
     shapes = [np.shape(l) for l in weights]
     return shapes
 
-class SaveAndLogStrategy(fl.server.strategy.FedAvg):
+class SaveAndLogStrategy(fl.server.strategy.FedOpt):
     """Adding saving and logging to the strategy pipeline"""
 
-    def __init__(self, conf, *args, **kwargs):
+    def __init__(self, conf, 
+                eta: float = 1e-1,
+                beta_1: float = 0.9,
+                beta_2: float = 0.99,
+                tau: float = 1e-9,
+                 *args, **kwargs):
         self.conf = conf
         self.client_leaving_history = []
+        eta_l = conf["learning_rate"]
+        if conf["base_fed"] == "FedAdam":
+            eta = conf["FedAdam"]["eta"]
+            beta_1 = conf["FedAdam"]["beta_1"]
+            beta_2 = conf["FedAdam"]["beta_2"]
+            tau = conf["FedAdam"]["tau"]
         self.aggregated_parameters = None
         self.best_loss = np.inf
         self.global_model_shapes = get_example_model_shape(conf)
@@ -62,6 +73,11 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
             f.write("epoch,loss,accuracy,local_loss,local_accuracy\n")
         super().__init__(evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
                          fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
+                        eta=eta,
+                        eta_l=eta_l,
+                        beta_1=beta_1,
+                        beta_2=beta_2,
+                        tau=tau,
                          *args, **kwargs)
 
     def aggregate_fit(
@@ -119,7 +135,41 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
         self.aggregated_parameters = (
             parameters_aggregated  # Why can't I access this at eval?
         )
-        return parameters_aggregated, metrics_aggregated
+
+        if self.conf["base_fed"] == "FedAvg":
+            return parameters_aggregated, metrics_aggregated
+        if self.conf["base_fed"] == "FedAdam":
+            fedavg_weights_aggregate = weights_aggregated
+            # Adam
+            delta_t: NDArrays = [
+                x - y for x, y in zip(fedavg_weights_aggregate, self.current_weights)
+            ]
+
+            # m_t
+            if not self.m_t:
+                self.m_t = [np.zeros_like(x) for x in delta_t]
+            self.m_t = [
+                np.multiply(self.beta_1, x) + (1 - self.beta_1) * y
+                for x, y in zip(self.m_t, delta_t)
+            ]
+
+            # v_t
+            if not self.v_t:
+                self.v_t = [np.zeros_like(x) for x in delta_t]
+            self.v_t = [
+                self.beta_2 * x + (1 - self.beta_2) * np.multiply(y, y)
+                for x, y in zip(self.v_t, delta_t)
+            ]
+
+            new_weights = [
+                x + self.eta * y / (np.sqrt(z) + self.tau)
+                for x, y, z in zip(self.current_weights, self.m_t, self.v_t)
+            ]
+
+            self.current_weights = new_weights
+
+            return ndarrays_to_parameters(self.current_weights), metrics_aggregated
+        raise NotImplementedError("base_fed not recognized: ",self.conf["base_fed"])
 
     def aggregate_evaluate(
         self,
@@ -246,7 +296,6 @@ class SaveAndLogStrategy(fl.server.strategy.FedAvg):
         # print(rands)
         for client in clients:
             client_config = self.generate_client_config(round_seed=rands[client.cid], server_round=server_round)
-
 
             fit_configurations.append((client, FitIns(parameters, client_config)))
 

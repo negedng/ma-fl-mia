@@ -36,5 +36,14 @@
     "aug_horizontal_flip":true,
     "norm_mode": "bn",
     "hide_layers": "no",
-    "dataset": "CIFAR10"
+    "dataset": "CIFAR10",
+    "base_fed": "FedAvg",
+    "FedAdam": {
+        "eta": 0.1,
+        "beta_1": 0.9,
+        "beta_2": 0.99,
+        "tau": 1e-9
+    },
+    "proximal_mu": 0,
+    "scheduler": {"0":{"learning_rate_reduction":0.01}, "15":{"learning_rate_reduction":0.001}, "40":{"learning_rate_reduction":0.0001}}
 }
