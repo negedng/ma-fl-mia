@@ -70,10 +70,8 @@ def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", seed=None,
     for i in range(len(idx_split)):
         idx_split[i] = np.sort(idx_split[i])
 
-    import pdb
     X_split = [X[idx] for idx in idx_split]
     Y_split = [Y[idx] for idx in idx_split]
-    pdb.set_trace()
 
     return X_split, Y_split
 
