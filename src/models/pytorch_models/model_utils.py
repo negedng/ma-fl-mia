@@ -11,7 +11,7 @@ def get_cpu():
 
 def get_device(conf):
     if len(conf["CUDA_VISIBLE_DEVICES"]) > 0:
-        if "client_resources" in conf.keys():
+        if "client_resources" in conf.keys() and conf["client_resources"] is not None:
             if "num_gpus" in conf["client_resources"].keys():
                 if conf["client_resources"]["num_gpus"] > 0:
                     device = torch.device("cuda")
