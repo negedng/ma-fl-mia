@@ -2,3 +2,4 @@ dump/
 __pycache__
 env.json
 .vscode/
+wandb/

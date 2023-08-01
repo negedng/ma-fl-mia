@@ -10,6 +10,7 @@ import json
 import copy
 
 from src import utils
+from src import WANDB_EXISTS
 
 global conf
 conf = utils.load_config()
@@ -67,6 +68,15 @@ def train(conf, train_ds=None):
         os.path.join(conf["paths"]["models"], conf["model_id"], "config.json"), "w"
     ) as f:
         json.dump(conf, f, indent=4)
+    
+    if WANDB_EXISTS:
+        import wandb
+        wandb.init(
+            project = "ma-fl-mia",
+            tags = ["federated", conf["exp_name"]],
+            config=conf
+        )
+
 
     if train_ds is None:
         train_ds, _, _ = datasets.load_data(conf=conf)
@@ -165,6 +175,7 @@ if __name__ == "__main__":
     X_val, Y_val = datasets.get_np_from_ds(val_ds)
 
     f_name = datetime.now().strftime("%Y%m%d-%H%M%S")
+    conf["exp_name"] = f_name
 
     with open(
         os.path.join(os.path.dirname(conf["paths"]["code"]), f"dump/{f_name}.json"), "w"

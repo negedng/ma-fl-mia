@@ -8,3 +8,8 @@ except ModuleNotFoundError:
     TF_MODELS = False
     IN_CHANNEL_DIM = 1
     OUT_CHANNEL_DIM = 0
+try:
+    import wandb
+    WANDB_EXISTS = True
+except:
+    WANDB_EXISTS = False

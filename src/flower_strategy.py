@@ -24,6 +24,7 @@ import numpy as np
 
 from src import model_aggregation, models, utils
 from src.models import model_utils
+from src import WANDB_EXISTS
 
 def fit_metrics_aggregation_fn(fit_metrics):
     losses = [a[1]["loss"] for a in fit_metrics]
@@ -129,6 +130,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedOpt):
         if self.fit_metrics_aggregation_fn:
             fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
             metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
+            self.train_metrics_aggregated = metrics_aggregated
             log(INFO, "aggregated fit results %s", str(metrics_aggregated))
         elif server_round == 1:  # Only log this warning once
             log(WARNING, "No fit_metrics_aggregation_fn provided")
@@ -193,6 +195,12 @@ class SaveAndLogStrategy(fl.server.strategy.FedOpt):
             for k,v in aggregated_result[1].items():
                 f.write(","+str(v))
             f.write("\n")
+        if WANDB_EXISTS:
+            import wandb
+            wandb_log = aggregated_result[1]
+            wandb_log["round"] = rnd
+            wandb_log.update(self.train_metrics_aggregated)
+            wandb.log(wandb_log)
         if (
             self.aggregated_parameters is not None
             and aggregated_result[0] < self.best_loss
