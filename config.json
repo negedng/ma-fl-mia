@@ -44,5 +44,6 @@
         "beta_2": 0.99,
         "tau": 1e-9
     },
-    "proximal_mu": 0
+    "proximal_mu": 0,
+    "wandb_tags" : []
 }

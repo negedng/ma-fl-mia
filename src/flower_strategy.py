@@ -1,5 +1,5 @@
 import flwr as fl
-from flwr.common.logger import log
+from src.utils import log
 from logging import ERROR, INFO
 from logging import WARNING
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -28,12 +28,12 @@ from src import WANDB_EXISTS
 
 def fit_metrics_aggregation_fn(fit_metrics):
     losses = [a[1]["loss"] for a in fit_metrics]
-    return {"avg_train_loss":np.mean(losses), "std_train_loss":np.std(losses)}
+    return {"train_loss":np.mean(losses), "train_lossStd":np.std(losses)}
 
 def evaluate_metrics_aggregation_fn(eval_metrics):
     eval_res = {
-        "loss": sum([e[1]["loss"] for e in eval_metrics]),
-        "accuracy": sum([e[1]["accuracy"] for e in eval_metrics]),
+        "server_loss": sum([e[1]["server_loss"] for e in eval_metrics]),
+        "server_accuracy": sum([e[1]["server_accuracy"] for e in eval_metrics]),
         "local_loss": np.mean([e[1]["local_loss"] for e in eval_metrics]),
         "local_accuracy": np.mean([e[1]["local_accuracy"] for e in eval_metrics]),
     }
@@ -200,6 +200,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedOpt):
             wandb_log = aggregated_result[1]
             wandb_log["round"] = rnd
             wandb_log.update(self.train_metrics_aggregated)
+            wandb_log = utils.create_nested_dict(wandb_log)
             wandb.log(wandb_log)
         if (
             self.aggregated_parameters is not None

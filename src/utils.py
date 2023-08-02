@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import json
+import logging
 
 
 def generalized_positional_notation(N, l):
@@ -117,3 +118,37 @@ def calculate_unit_size(cid, conf, len_train_data):
     else:
         raise ValueError('model agnostic mode not recognized{conf["ma_mode"]}')
     return unit_size
+
+
+def get_logger():
+    logger = logging.getLogger("ma-fl-mia")
+    logger.setLevel(logging.DEBUG)
+    DEFAULT_FORMATTER = logging.Formatter(
+    "%(levelname)s %(name)s %(asctime)s | %(filename)s:%(lineno)d | %(message)s"
+    )
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG)
+    console_handler.setFormatter(DEFAULT_FORMATTER)
+    logger.addHandler(console_handler)
+    return logger
+
+DEFAULT_LOGGER = get_logger()
+
+def log(*args, **kwargs):
+    DEFAULT_LOGGER.log(*args,**kwargs)
+
+def create_nested_dict(flat_dict):
+    nested_dict = {}
+
+    for key, value in flat_dict.items():
+        keys = key.split('_')
+        current_dict = nested_dict
+
+        for i, k in enumerate(keys[:-1]):
+            if k not in current_dict:
+                current_dict[k] = {}
+            current_dict = current_dict[k]
+
+        current_dict[keys[-1]] = value
+
+    return nested_dict

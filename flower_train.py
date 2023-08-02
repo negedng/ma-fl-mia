@@ -1,5 +1,5 @@
 import flwr as fl
-from flwr.common.logger import log
+from src.utils import log
 from flwr.common import ndarrays_to_parameters
 from logging import ERROR, INFO
 import shutil
@@ -73,8 +73,12 @@ def train(conf, train_ds=None):
         import wandb
         wandb.init(
             project = "ma-fl-mia",
-            tags = ["federated", conf["exp_name"]],
-            config=conf
+            tags = ["federated", conf["ma_mode"], conf["dataset"], conf["model_mode"], "cl#"+str(conf["num_clients"])],
+            group = conf["exp_name"],
+            config=conf,
+            id=conf["model_id"],
+            job_type="train",
+            reinit=True
         )
 
 
@@ -147,7 +151,43 @@ def train(conf, train_ds=None):
     model = model_utils.init_model(
         unit_size=conf["unit_size"], conf=conf, model_path=model_path, static_bn=True
     )
+    if WANDB_EXISTS:
+        wandb.finish()
     return model, conf
+
+def eval(model, conf):
+        if WANDB_EXISTS:
+            import wandb
+            wandb.init(
+                project = "ma-fl-mia",
+                tags = ["federated", conf["ma_mode"], conf["dataset"], conf["model_mode"], "cl#"+str(conf["num_clients"])] + conf["wandb_tags"],
+                group = conf["exp_name"],
+                config=conf,
+                id=conf["model_id"],
+                job_type="eval",
+                reinit=True
+            )
+        train_ds, val_ds, test_ds = datasets.load_data(conf=conf)
+        train_ds = datasets.preprocess_data(train_ds, conf)
+        val_ds = datasets.preprocess_data(val_ds, conf, cache=True)
+        test_ds = datasets.preprocess_data(test_ds, conf, cache=True)
+
+        results = metrics.evaluate(model_conf, model, train_ds, val_ds, test_ds)
+
+        # Per client eval
+        per_client_res = metrics.attack_on_clients(
+            model_conf, X_split, Y_split, train_ds, val_ds, test_ds
+        )
+        if WANDB_EXISTS:
+            import wandb
+            import copy
+            wandb_log = copy.deepcopy(results)
+            wandb_log["client_results"] = per_client_res["client_results"]
+            for k in wandb_log.keys():
+                wandb.define_metric(k, hidden=True)
+            wandb.log(wandb_log)
+            wandb.finish()
+        return results, per_client_res
 
 
 if __name__ == "__main__":
@@ -191,16 +231,8 @@ if __name__ == "__main__":
 
         print("Training completed, model evaluation")
         # Evaluate
-        train_ds = datasets.preprocess_data(train_ds, conf)
-        val_ds = datasets.preprocess_data(val_ds, conf, cache=True)
-        test_ds = datasets.preprocess_data(test_ds, conf, cache=True)
+        results, res = eval(model, model_conf)
 
-        results = metrics.evaluate(model_conf, model, train_ds, val_ds, test_ds)
-
-        # Per client eval
-        res = metrics.attack_on_clients(
-            model_conf, X_split, Y_split, train_ds, val_ds, test_ds
-        )
         with open(
             os.path.join(
                 model_conf["paths"]["models"],

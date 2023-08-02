@@ -1,5 +1,5 @@
 import flwr as fl
-from flwr.common.logger import log
+from src.utils import log
 from logging import ERROR, INFO
 import numpy as np
 import os
@@ -167,12 +167,12 @@ class FlowerClient(fl.client.NumPyClient):
             return (
                 loss,
                 test_len,
-                {"cid": self.cid,
+                {"local_cid": self.cid,
                  "local_rate":self.conf['local_unit_size']/self.conf['unit_size'], 
                  "local_loss":local_loss, 
                  "local_accuracy": local_accuracy, 
-                 "accuracy": accuracy,
-                 "loss":loss},
+                 "server_accuracy": accuracy,
+                 "server_loss":loss},
             )
         except Exception as e:
             log(
