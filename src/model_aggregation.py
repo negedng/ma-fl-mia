@@ -157,28 +157,29 @@ def get_idx(from_len, to_len, conf, rand, next_2d):
         if next_2d % 2 == 0:
             return list(range(to_len))
         else:
-            return list(range(to_len, from_len, 1))
+            return list(range(from_len-to_len, from_len, 1))
     if rand % 4 == 1:
         if next_2d % 2 == 0:
-            return list(range(to_len, from_len, 1))
+            return list(range(from_len-to_len, from_len, 1))
         else:
             return list(range(to_len))
     if rand % 4 == 3:
-        return list(range(to_len, from_len, 1))
+        return list(range(from_len-to_len, from_len, 1))
 
 
-import pdb
 
 
 def cut_idx_new(w_from_shape, w_to_shape, conf={}, rand=None):
-    def is_channel_in(dim, max_dim):
+    def is_channel_in(dim, wmatrix_shape):
+        max_dim = len(wmatrix_shape)
         if IN_CHANNEL_DIM < 0:
-            return max_dim - IN_CHANNEL_DIM == dim
+            return max_dim + IN_CHANNEL_DIM == dim
         return IN_CHANNEL_DIM == dim
 
     def is_channel_out(dim, max_dim):
+        max_dim = len(w_from_shape)
         if OUT_CHANNEL_DIM < 0:
-            return max_dim - OUT_CHANNEL_DIM == dim
+            return max_dim + OUT_CHANNEL_DIM == dim
         return OUT_CHANNEL_DIM == dim
 
     w_idx = []
@@ -207,9 +208,9 @@ def cut_idx_new(w_from_shape, w_to_shape, conf={}, rand=None):
                 ):
                     l_idx.append(get_idx(from_len, to_len, conf, rand, dim))
                 elif conf["cut_type"] == "layer_same_as_input":
-                    if is_channel_in(dim, from_len):
+                    if is_channel_in(dim, l_from_shape):
                         l_idx.append(last_out_idx)
-                    elif is_channel_out(dim, from_len):
+                    elif is_channel_out(dim, l_from_shape):
                         this_out_idx = get_idx(from_len, to_len, conf, rand, next_2d)
                         l_idx.append(this_out_idx)
                     else:
@@ -381,7 +382,6 @@ def aggregate_rmcid(
     # Calculate the total number of examples used during training
     num_examples_list = [num_examples for _, num_examples in results]
     num_examples_total = sum(num_examples_list)
-
     # Create a list of weights, each multiplied by the related number of examples
     weighted_weights = [
         [layer * num_examples for layer in weights] for weights, num_examples in results
