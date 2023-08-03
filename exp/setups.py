@@ -6,18 +6,25 @@
 import json
     
 def get_experiment(exp_name='default', params=""):
+    conf_changes = []
     if exp_name == 'default':
-        return exp_default()
+        conf_changes = exp_default()
+    if exp_name == "seeds":
+        conf_changes =  exp_seeds()
     if exp_name == "unit_size":
-        return exp_unit_size3()
+        conf_changes = exp_unit_size3()
     if exp_name == "scale_us":
-        return exp_scale_us3()
+        conf_changes = exp_scale_us3()
     if exp_name == "minus_one":
-        return exp_unit_size_minus_one2()
+        conf_changes = exp_unit_size_minus_one2()
     if exp_name == 'all_homo':
-        return exp_all_homo()
+        conf_changes = exp_all_homo()
+    if params != "":
+        for i in range(len(conf_changes)):
+            conf_changes[i].update(dict(json.loads(params)))
     if exp_name == 'config':
-        return exp_config(params)
+        conf_changes = exp_config(params)
+    return conf_changes
     raise ValueError(f'not recognized exp name: {exp_name}')
 
 def exp_default():
@@ -28,6 +35,17 @@ def exp_default():
 def exp_config(params):
     conf_changes = [dict(json.loads(params))]
     return conf_changes
+
+def exp_seeds():
+    conf_changes = []
+    for i in range(3):
+        conf_changes.append({"ma_mode":"rm-cid","seed":i,"scale_mode":1, "unit_size":64, "rounds":100})
+    for i in range(3):
+        conf_changes.append({"ma_mode":"no","seed":i,"unit_size":64, "rounds":100})
+    for i in range(3):
+        conf_changes.append({"ma_mode":"no","seed":i,"unit_size":32, "rounds":100})
+    return conf_changes
+
 
 
 def exp_unit_size():
