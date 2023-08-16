@@ -27,7 +27,8 @@
     "dp_clipnorm":null,
     "dp_noise":0.1,
     "permutate_cuts": true,
-    "cut_type": "layer_same_as_input",
+    "cut_type": "submatrix",
+    "cut_layerwise": true,
     "data_normalize": true,
     "data_centralize": true,
     "save_last_clients": 2,
@@ -42,8 +43,8 @@
         "eta": 0.1,
         "beta_1": 0.9,
         "beta_2": 0.99,
-        "tau": 1e-9
+        "tau": 0.01
     },
     "proximal_mu": 0,
-    "wandb_tags" : []
+    "wandb_tags" : ["divideZeroRandom"]
 }

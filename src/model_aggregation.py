@@ -151,20 +151,31 @@ def expand_matrix_conf(M, to_shape, conf={}, rand=None):
 def get_idx(from_len, to_len, conf, rand, next_2d):
     if rand is None:
         rand = 0  #!TODO heterofl shortcut
-    if rand % 4 == 0:
-        return list(range(to_len))
-    if rand % 4 == 2:
-        if next_2d % 2 == 0:
+    
+    if conf["cut_type"]=="submatrix":
+        if rand % 4 == 0:
             return list(range(to_len))
-        else:
+        if rand % 4 == 2:
+            if next_2d % 2 == 0:
+                return list(range(to_len))
+            else:
+                return list(range(from_len-to_len, from_len, 1))
+        if rand % 4 == 1:
+            if next_2d % 2 == 0:
+                return list(range(from_len-to_len, from_len, 1))
+            else:
+                return list(range(to_len))
+        if rand % 4 == 3:
             return list(range(from_len-to_len, from_len, 1))
-    if rand % 4 == 1:
-        if next_2d % 2 == 0:
-            return list(range(from_len-to_len, from_len, 1))
-        else:
-            return list(range(to_len))
-    if rand % 4 == 3:
-        return list(range(from_len-to_len, from_len, 1))
+    elif conf["cut_type"]=="random":
+        return list(sorted(np.random.RandomState(seed=(rand+1)*(next_2d+1)).permutation(from_len)[:to_len]))
+    elif conf["cut_type"]=="share_channels":
+        no_shared_channels = int(to_len*0.1)
+        shared_channels = list(range(no_shared_channels))
+        random_channels = list(sorted(np.random.RandomState(seed=(rand+1)*(next_2d+1)).permutation(from_len-no_shared_channels)[:to_len-no_shared_channels]+no_shared_channels))
+        return shared_channels + random_channels
+    else:
+        raise NotImplementedError(conf["cut_type"])
 
 
 
@@ -202,12 +213,9 @@ def cut_idx_new(w_from_shape, w_to_shape, conf={}, rand=None):
             if from_len == to_len:
                 l_idx.append(list(range(from_len)))
             else:
-                if (
-                    conf["cut_type"] == "layer_fixed_submatrix"
-                    or conf["cut_type"] == "simple"
-                ):
+                if not conf["cut_layerwise"]:
                     l_idx.append(get_idx(from_len, to_len, conf, rand, dim))
-                elif conf["cut_type"] == "layer_same_as_input":
+                else:
                     if is_channel_in(dim, l_from_shape):
                         l_idx.append(last_out_idx)
                     elif is_channel_out(dim, l_from_shape):
@@ -217,10 +225,6 @@ def cut_idx_new(w_from_shape, w_to_shape, conf={}, rand=None):
                         raise IndexError(
                             "Something is wrong with IN - OUT channel dimension, expected (..,IN,OUT) or (OUT,IN,..)"
                         )
-                else:
-                    raise NotImplementedError(
-                        "cut_type not recognized", conf["cut_type"]
-                    )
         w_idx.append(l_idx)
         last_out_idx = this_out_idx
     return w_idx
@@ -364,6 +368,7 @@ def aggregate_rmcid(
             count_layer = np.add(count_layer, ones_pad)
             layer_agg = np.add(layer_agg, l_padded)
 
+        return np.divide(layer_agg, count_layer, out=np.zeros_like(layer_agg), where=count_layer!=0)
         if np.any(count_layer == 0.0):
             print(count_layer)
             print(ones_pad[0, 0, :, 0])

@@ -51,6 +51,8 @@ def train(conf, train_ds=None):
     global X_split
     global Y_split
     conf["model_id"] = datetime.now().strftime("%Y%m%d-%H%M%S")
+    if "local_unit_size" in conf.keys():
+        conf.pop("local_unit_size")
     os.makedirs(os.path.join(conf["paths"]["models"], conf["model_id"]), mode=0o777)
     if conf["save_last_clients"] > 0:
         os.makedirs(os.path.join(conf["paths"]["models"], conf["model_id"], "clients"))
