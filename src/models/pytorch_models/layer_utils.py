@@ -2,6 +2,18 @@ import torch.nn as nn
 import torch
 
 from src.models.pytorch_models.scaler import Scaler
+from src.models.pytorch_models.od_layers import ODConv2d, ODLinear
+
+def get_linear(ordered_dropout=False, p=None, *args, **kwargs):
+    if ordered_dropout:
+        return ODLinear(*args, **kwargs)
+    return nn.Linear(*args, **kwargs)
+
+
+def get_conv(ordered_dropout=False, p=None, *args, **kwargs):
+    if ordered_dropout:
+        return ODConv2d(*args, **kwargs)
+    return nn.Conv2d(*args, **kwargs)
 
 
 def get_scaler(use_scaler, scaler_rate, keep_scaling):

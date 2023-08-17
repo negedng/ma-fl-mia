@@ -5,6 +5,7 @@ import numpy as np
 from tqdm import tqdm
 import os
 import copy
+from src.models.pytorch_models.od_layers import sample
 
 def get_cpu():
     return torch.device("cpu")
@@ -159,6 +160,9 @@ def fit(model, data, conf, verbose=0, validation_data=None, round_config=None):
         for images, labels in iterator:
             images, labels = images.to(get_device(conf)), labels.to(get_device(conf))
             optimizer.zero_grad()
+            if conf["ma_mode"]=="fjord":
+                p = sample(conf)
+                model.set_ordered_dropout_rate(p)
             outputs = model(images)
             if conf["proximal_mu"]!=0:
                 proximal_term = 0

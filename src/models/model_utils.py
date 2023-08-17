@@ -29,7 +29,7 @@ def get_model_architecture(unit_size, model_mode=None, conf={}, *args, **kwargs)
         default_unit_size = conf["unit_size"]
     
     model_rate = float(local_unit_size) / float(default_unit_size)
-
+    ordered_dropout = conf["ma_mode"]=="fjord"
     if model_mode == "simple_CNN":
         return get_simple_CNN(unit_size, *args, **kwargs)
     elif model_mode == "diao_CNN":
@@ -48,6 +48,7 @@ def get_model_architecture(unit_size, model_mode=None, conf={}, *args, **kwargs)
             model_rate=model_rate,
             default_hidden=default_hidden,
             norm_mode=norm_mode,
+            ordered_dropout=ordered_dropout,
             *args,
             **kwargs,
         )

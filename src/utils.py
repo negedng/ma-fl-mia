@@ -119,7 +119,7 @@ def calculate_unit_size(cid, conf, len_train_data):
                 unit_size = conf["unit_size"] * 0.75
         else:
             raise ValueError('scale mode not recognized{conf["scale_mode"]}')
-    elif conf["ma_mode"] == "no":
+    elif conf["ma_mode"] == "no" or conf["ma_mode"]=="fjord":
         unit_size = conf["unit_size"]
     else:
         raise ValueError('model agnostic mode not recognized{conf["ma_mode"]}')
