@@ -35,7 +35,8 @@ class DiaoCNN(nn.Module):
         conv = get_conv(in_channels=input_shape[0], out_channels=hidden_sizes[0], kernel_size=3, stride=1, padding=1, bias=use_bias, ordered_dropout=ordered_dropout, p=1.0)
         self.od_layers.append(conv)
 
-        norm = get_norm(hidden_sizes[0], norm_mode=norm_mode, static_bn=static_bn)
+        norm = get_norm(hidden_sizes[0], norm_mode=norm_mode, static_bn=static_bn, ordered_dropout=ordered_dropout, p=1.0)
+        self.od_layers.append(norm)
         scaler = get_scaler(
             use_scaler=use_scaler, scaler_rate=scaler_rate, keep_scaling=keep_scaling
         )
@@ -43,7 +44,7 @@ class DiaoCNN(nn.Module):
         blocks = [
             conv,
             scaler,
-            #norm,
+            norm,
             nn.ReLU(inplace=True),
             nn.MaxPool2d(2),
         ]
@@ -53,8 +54,9 @@ class DiaoCNN(nn.Module):
             self.od_layers.append(conv)
 
             norm = get_norm(
-                hidden_sizes[i + 1], norm_mode=norm_mode, static_bn=static_bn
+                hidden_sizes[i + 1], norm_mode=norm_mode, static_bn=static_bn, ordered_dropout=ordered_dropout, p=1.0
             )
+            self.od_layers.append(norm)
             scaler = get_scaler(
                 use_scaler=use_scaler,
                 scaler_rate=scaler_rate,
@@ -64,7 +66,7 @@ class DiaoCNN(nn.Module):
                 [
                     conv,
                     scaler,
-                    #norm,
+                    norm,
                     nn.ReLU(inplace=True),
                     nn.MaxPool2d(2),
                 ]
