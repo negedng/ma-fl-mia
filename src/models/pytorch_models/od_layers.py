@@ -65,5 +65,10 @@ class ODLinear(nn.Linear):
 
 
 def sample(conf):
+    if type(conf["scale_mode"]) == int and conf["scale_mode"] > 0 and conf["scale_mode"]<=conf["num_clients"]:
+        model_size = np.random.choice(a=[0.5,1.0],
+                                      size=1,
+                                      p=[1-conf["scale_mode"]/conf["num_clients"],conf["scale_mode"]/conf["num_clients"]])
+        return model_size
     m = 5
     return (np.random.randint(m) + 1) / m    
