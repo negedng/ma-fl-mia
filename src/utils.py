@@ -2,6 +2,7 @@ import numpy as np
 import os
 import json
 import logging
+import re
 
 
 def generalized_positional_notation(N, l):
@@ -110,13 +111,27 @@ def calculate_unit_size(cid, conf, len_train_data):
                 unit_size = conf["unit_size"] // 2
         elif type(conf["scale_mode"]) == int and conf["scale_mode"] < 0:
             unit_size = conf["unit_size"] + conf["scale_mode"]
-        elif conf["scale_mode"] == "basic":
-            unit_size = conf["unit_size"] - 1
-        elif conf["scale_mode"] == "long":
-            if int(cid) in [0, 1, 2, 5, 6, 7]:
+        elif type(conf["scale_mode"]) == str:
+            pattern1 = r'(\d+):(\d+)-(\d+):(\d+)'
+            if conf["scale_mode"] == "basic":
                 unit_size = conf["unit_size"] - 1
+            elif conf["scale_mode"] == "long":
+                if int(cid) in [0, 1, 2, 5, 6, 7]:
+                    unit_size = conf["unit_size"] - 1
+                else:
+                    unit_size = conf["unit_size"] * 0.75
+            elif re.match(pattern1, conf["scale_mode"]):
+                match = re.match(pattern1, conf["scale_mode"])
+                small_num = int(match.group(1))
+                small_size = int(match.group(2))
+                large_num = int(match.group(3))
+                large_size = int(match.group(3))
+                if int(cid) < small_num:
+                    unit_size = small_size
+                else:
+                    unit_size = large_size
             else:
-                unit_size = conf["unit_size"] * 0.75
+                raise ValueError('scale mode not recognized{conf["scale_mode"]}')
         else:
             raise ValueError('scale mode not recognized{conf["scale_mode"]}')
     elif conf["ma_mode"] == "no" or conf["ma_mode"]=="fjord":
