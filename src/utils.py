@@ -125,7 +125,7 @@ def calculate_unit_size(cid, conf, len_train_data):
                 small_num = int(match.group(1))
                 small_size = int(match.group(2))
                 large_num = int(match.group(3))
-                large_size = int(match.group(3))
+                large_size = int(match.group(4))
                 if int(cid) < small_num:
                     unit_size = small_size
                 else:
