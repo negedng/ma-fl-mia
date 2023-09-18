@@ -43,8 +43,11 @@ class FlowerClient(fl.client.NumPyClient):
 
     def set_parameters(self, weights, config):
         """set weights either as a simple update or model agnostic way"""
-        if self.conf["ma_mode"] == "heterofl":
-            cp_weights = model_aggregation.crop_weights(
+        if "channel_idx_list" in config.keys():
+            cp_weights = model_aggregation.crop_channels(weights, config["channel_idx_list"])
+            models.set_weights(self.model, cp_weights)
+        elif self.conf["ma_mode"] == "heterofl":
+            cp_weights = model_aggregation.select_channels(
                 weights, models.get_weights(self.model), conf=self.conf, rand=0
             )
             models.set_weights(self.model, cp_weights)
@@ -53,10 +56,13 @@ class FlowerClient(fl.client.NumPyClient):
                 rand = config["round_seed"]
             else:
                 rand = self.cid
-            cp_weights = model_aggregation.crop_weights(
+                print("Warning, obsolete")
+            cp_weights = model_aggregation.select_channels(
                 weights, models.get_weights(self.model), conf=self.conf, rand=rand
             )
             models.set_weights(self.model, cp_weights)
+        elif self.conf["ma_mode"] == "maxgrad":
+            raise NotImplementedError("Ma mode maxgrad not recognized")
         else:
             models.set_weights(self.model, weights)
 

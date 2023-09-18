@@ -230,15 +230,20 @@ def cut_idx_new(w_from_shape, w_to_shape, conf={}, rand=None):
     return w_idx
 
 
-def crop_weights(w_from, w_to, conf={}, rand=None):
+def crop_channels(w_from, channel_idx_list):
+    """Select the channels using the list of channel ids"""
+    w_ret = []
+    for l_from, idx_list in zip(w_from, channel_idx_list):
+        w_ret.append(take_new(l_from, idx_list))
+    return w_ret
+
+
+def select_channels(w_from, w_to, conf={}, rand=None):
     """Alternate top-right and bottom left to have the same out as the next layer's in"""
     w_from_shape = [l.shape for l in w_from]
     w_to_shape = [l.shape for l in w_to]
     idx_ret = cut_idx_new(w_from_shape, w_to_shape, conf=conf, rand=rand)
-    w_ret = []
-    for l_from, idx_list in zip(w_from, idx_ret):
-        w_ret.append(take_new(l_from, idx_list))
-    return w_ret
+    return crop_channels(w_from, idx_ret)
 
 
 def crop_weights_old(w_from, w_to, conf={}, rand=None):
@@ -351,6 +356,7 @@ def aggregate_rmcid(
     rands,  # [cid..]
     total_model_shapes,
     conf={},
+    cut_idx_list=None # pass idx list by client
 ):
     def aggregate_layer(layer_updates, num_examples_list, cut_idx_list, max_dim_layer):
         """Padding layers with 0 to max size, then average them"""
@@ -393,10 +399,11 @@ def aggregate_rmcid(
     ]  # [w...]
 
     # Get cut matching
-    cut_idx_list = [
-        cut_idx_new(total_model_shapes, [l.shape for l in w_client], conf, rand)
-        for w_client, rand in zip(weighted_weights, rands)
-    ]
+    if cut_idx_list is None:
+        cut_idx_list = [
+            cut_idx_new(total_model_shapes, [l.shape for l in w_client], conf, rand)
+            for w_client, rand in zip(weighted_weights, rands)
+        ]
     # pdb.set_trace()
     agg_layers = [
         aggregate_layer(
