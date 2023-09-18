@@ -152,6 +152,9 @@ def fit(model, data, conf, verbose=0, validation_data=None, round_config=None):
     loss_fn = get_loss(conf)
     if conf["proximal_mu"]!=0:
         global_params = copy.deepcopy(model).parameters()
+    if conf["ma_mode"]=="fjord" and conf["cut_type"]=="random_epoch":
+        new_seed = np.random.randint(2**32-1)
+        model.set_ordered_dropout_channels(new_seed)       
     for epoch in range(conf["epochs"]):
         iterator = data
         if verbose>0.8:
@@ -159,10 +162,13 @@ def fit(model, data, conf, verbose=0, validation_data=None, round_config=None):
         correct, total, epoch_loss = 0, 0, 0.0
         for images, labels in iterator:
             images, labels = images.to(get_device(conf)), labels.to(get_device(conf))
-            optimizer.zero_grad()
             if conf["ma_mode"]=="fjord":
                 p = sample(conf)
+                if conf["cut_type"]=="random_batch":
+                    new_seed = np.random.randint(2**32-1)
+                    model.set_ordered_dropout_channels(new_seed)
                 model.set_ordered_dropout_rate(p)
+            optimizer.zero_grad()
             outputs = model(images)
             if conf["proximal_mu"]!=0:
                 proximal_term = 0

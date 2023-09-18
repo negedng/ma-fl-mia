@@ -49,6 +49,7 @@ def get_model_architecture(unit_size, model_mode=None, conf={}, *args, **kwargs)
             default_hidden=default_hidden,
             norm_mode=norm_mode,
             ordered_dropout=ordered_dropout,
+            cut_type = conf["cut_type"],
             *args,
             **kwargs,
         )

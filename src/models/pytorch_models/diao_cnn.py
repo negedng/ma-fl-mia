@@ -23,13 +23,15 @@ class DiaoCNN(nn.Module):
         norm_mode="bn",
         default_hidden=[64, 128, 256, 512],
         use_bias=True,
-        ordered_dropout=False
+        ordered_dropout=False,
+        cut_type="random"
     ):
         super(DiaoCNN, self).__init__()
 
         hidden_sizes = [int(np.ceil(model_rate * x)) for x in default_hidden]
         # hidden_sizes = [int(np.ceil(model_rate * x)) if i==2 else x for i,x in enumerate(default_hidden)]
         scaler_rate = model_rate
+        self.cut_type = cut_type
 
         self.od_layers = []
         conv = get_conv(in_channels=input_shape[0], out_channels=hidden_sizes[0], kernel_size=3, stride=1, padding=1, bias=use_bias, ordered_dropout=ordered_dropout, p=1.0)
@@ -87,9 +89,14 @@ class DiaoCNN(nn.Module):
         output = self.blocks(x)
         return output
     
+    def set_ordered_dropout_channels(self, seed):
+        for layer in self.od_layers:
+            layer.permutation_seed = seed
+
     def set_ordered_dropout_rate(self, p=None):
         for layer in self.od_layers:
             layer.p = p
+
 
 def get_diao_CNN(*args, **kwargs):
     return DiaoCNN(*args, **kwargs)
