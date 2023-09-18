@@ -107,6 +107,8 @@ class FlowerClient(fl.client.NumPyClient):
                 raise ValueError("Warning, client has NaN loss")
 
             shared_metrics = {"client_id": self.cid, "loss": history.history["loss"]}
+            if self.channel_idx_list:
+                shared_metrics["channel_idx_list"] = self.channel_idx_list
 
             client_weight = self.train_len if self.conf["weight_clients"] else 1
 

@@ -111,7 +111,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedOpt):
             if "channel_idx_list" in results[0][1].metrics.keys():
                 cut_idx_list = [fit_res.metrics["channel_idx_list"] for _, fit_res in results]
             else:
-                idx_list_per_client = None
+                cut_idx_list = None
             # !TODO set same replacement here
             rands = utils.get_random_permutation_for_all(cids, server_round, len(cids), self.conf["permutate_cuts"])
             rands = [rands[cid] for cid in cids]
