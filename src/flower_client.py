@@ -14,6 +14,7 @@ class FlowerClient(fl.client.NumPyClient):
     def __init__(self, cid, conf):
         self.cid = cid
         self.conf = conf
+        self.channel_idx_list = None
 
     def init_model(self):
         self.calculate_unit_size()
@@ -57,12 +58,33 @@ class FlowerClient(fl.client.NumPyClient):
             else:
                 rand = self.cid
                 print("Warning, obsolete")
-            cp_weights = model_aggregation.select_channels(
-                weights, models.get_weights(self.model), conf=self.conf, rand=rand
-            )
+
+            if self.conf["cut_type"]=="maxgrad" or self.conf["cut_type"]=="softmaxgrad":
+                train_ds = datasets.get_ds_from_np(self.train_data)
+                if self.conf["aug"]:
+                    train_ds = datasets.aug_data(train_ds, conf=self.conf)
+                train_ds = datasets.preprocess_data(train_ds, conf=self.conf, shuffle=True)
+                g_model = model_utils.init_model(
+                        self.conf["unit_size"], conf=self.conf, weights=weights, static_bn=True
+                    )
+                grads = models.get_gradients(g_model, train_ds, self.conf, config)
+                w_from_shape = [l.shape for l in weights]
+                w_to_shape = [l.shape for l in models.get_weights(self.model)]
+                idx_ret = model_aggregation.cut_idx_new(w_from_shape, w_to_shape, conf=self.conf, grads=grads, rand=rand)
+                print(self.cid, idx_ret[0][0])
+                cp_weights = model_aggregation.crop_channels(weights, idx_ret)
+                self.channel_idx_list = idx_ret
+            else:
+                w_from_shape = [l.shape for l in weights]
+                w_to_shape = [l.shape for l in models.get_weights(self.model)]
+                idx_ret = model_aggregation.cut_idx_new(w_from_shape, w_to_shape, conf=self.conf, rand=rand)
+                print(rand, idx_ret[0][0])
+                cp_weights = model_aggregation.crop_channels(weights, idx_ret)
+                #cp_weights = model_aggregation.select_channels(
+                #    weights, models.get_weights(self.model), conf=self.conf, rand=rand
+                #)
+                self.channel_idx_list = idx_ret
             models.set_weights(self.model, cp_weights)
-        elif self.conf["ma_mode"] == "maxgrad":
-            raise NotImplementedError("Ma mode maxgrad not recognized")
         else:
             models.set_weights(self.model, weights)
 
@@ -159,6 +181,7 @@ class FlowerClient(fl.client.NumPyClient):
             # Local model eval
             self.set_parameters(weights, config)
             local_loss, local_accuracy = models.evaluate(self.model, test_ds, self.conf, verbose=0)
+            #local_loss, local_accuracy = 0,0
             if config["calculate_global"]:
                 # Global model eval
                 test_ds = datasets.get_ds_from_np(self.test_data)

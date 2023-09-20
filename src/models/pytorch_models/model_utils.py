@@ -152,10 +152,13 @@ def fit(model, data, conf, verbose=0, validation_data=None, round_config=None):
     loss_fn = get_loss(conf)
     if conf["proximal_mu"]!=0:
         global_params = copy.deepcopy(model).parameters()
-    if conf["ma_mode"]=="fjord" and conf["cut_type"]=="random_epoch":
+    if conf["ma_mode"]=="fjord" and conf["cut_type"]=="random_round":
         new_seed = np.random.randint(2**32-1)
         model.set_ordered_dropout_channels(new_seed)       
     for epoch in range(conf["epochs"]):
+        if conf["ma_mode"]=="fjord" and conf["cut_type"]=="random_epoch":
+            new_seed = np.random.randint(2**32-1)
+            model.set_ordered_dropout_channels(new_seed)   
         iterator = data
         if verbose>0.8:
             iterator = tqdm(data, total=int(np.ceil(len(data.dataset)/conf["batch_size"])))
@@ -220,3 +223,25 @@ def count_params(model, only_trainable=False):
     else:
         pytorch_total_params = sum(p.numel() for p in model.parameters())
     return pytorch_total_params
+
+
+def get_gradients(model, data, conf, round_config=None):
+    model.train() # switch to training mode
+    if round_config is not None:
+        conf["learning_rate"] = round_config["learning_rate"]
+    optimizer = get_optimizer(model.parameters(), conf)
+    optimizer.zero_grad()
+    loss_fn = get_loss(conf)
+    i, (images, labels) = next(enumerate(data))
+    images, labels = images.to(get_device(conf)), labels.to(get_device(conf))
+    outputs = model(images)
+    loss = loss_fn(outputs, labels)
+    loss.backward()
+    grads = [f.grad.data.detach().cpu().numpy() for f in model.parameters()]
+    p_grad = np.sum(np.absolute(grads[0]), axis=(1,2,3))
+    #print(p_grad)
+    #import pdb
+    #pdb.set_trace()
+    # grads = [np.absolute(l) for l in grads]
+    # grads = [np.sum(l, axis=(2,3)) if len(l.shape)==4 else l for l in grads]
+    return grads

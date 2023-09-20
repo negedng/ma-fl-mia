@@ -173,3 +173,15 @@ def create_nested_dict(flat_dict):
         current_dict[keys[-1]] = value
 
     return nested_dict
+
+def indices_of_largest_to_smallest(numbers):
+    # Enumerate the numbers along with their indices
+    enumerated_numbers = list(enumerate(numbers))
+    
+    # Sort the enumerated numbers in descending order of values
+    sorted_indices = sorted(enumerated_numbers, key=lambda x: x[1], reverse=True)
+    
+    # Extract the indices from the sorted list
+    indices = [index for index, _ in sorted_indices]
+    
+    return indices

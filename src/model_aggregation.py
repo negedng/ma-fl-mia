@@ -148,7 +148,7 @@ def expand_matrix_conf(M, to_shape, conf={}, rand=None):
     return M_padded
 
 
-def get_idx(from_len, to_len, conf, rand, next_2d):
+def get_idx(from_len, to_len, conf, rand, next_2d, grads=None):
     if rand is None:
         rand = 0  #!TODO heterofl shortcut
     
@@ -174,13 +174,23 @@ def get_idx(from_len, to_len, conf, rand, next_2d):
         shared_channels = list(range(no_shared_channels))
         random_channels = list(sorted(np.random.RandomState(seed=(rand+1)*(next_2d+1)).permutation(from_len-no_shared_channels)[:to_len-no_shared_channels]+no_shared_channels))
         return shared_channels + random_channels
+    elif conf["cut_type"]=="maxgrad":
+        sampled_indices = sorted(utils.indices_of_largest_to_smallest(grads)[:to_len])
+        return list(sorted(sampled_indices))
+    elif conf["cut_type"]=="softmaxgrad":
+        grads = grads - np.max(grads)
+        softmax_grads = np.exp(grads) / np.sum(np.exp(grads))
+        sampled_indices = np.random.choice(len(softmax_grads), to_len, replace=False, p=softmax_grads)
+        #return list(sorted(np.random.RandomState(seed=(rand+1)*(next_2d+1)).permutation(from_len)[:to_len]))
+        return list(sorted(sampled_indices))
     else:
         raise NotImplementedError(conf["cut_type"])
 
 
 
 
-def cut_idx_new(w_from_shape, w_to_shape, conf={}, rand=None):
+def cut_idx_new(w_from_shape, w_to_shape, conf={}, rand=None, grads=None):
+    """Currently: gets previous layer's out as in for conv layers, same out as the last out with the same shape and only updates outs on conv2d. !TODO clean it up"""
     def is_channel_in(dim, wmatrix_shape):
         max_dim = len(wmatrix_shape)
         if IN_CHANNEL_DIM < 0:
@@ -196,7 +206,7 @@ def cut_idx_new(w_from_shape, w_to_shape, conf={}, rand=None):
     w_idx = []
     last_out_idx = []
     next_2d = 0
-    for l_from_shape, l_to_shape in zip(w_from_shape, w_to_shape):
+    for layer_id, (l_from_shape, l_to_shape) in enumerate(zip(w_from_shape, w_to_shape)):
         changing_dims = [
             dim
             for dim in range(len(l_from_shape))
@@ -219,7 +229,14 @@ def cut_idx_new(w_from_shape, w_to_shape, conf={}, rand=None):
                     if is_channel_in(dim, l_from_shape):
                         l_idx.append(last_out_idx)
                     elif is_channel_out(dim, l_from_shape):
-                        this_out_idx = get_idx(from_len, to_len, conf, rand, next_2d)
+                        sum_grads = None
+                        if grads is not None:
+                            abs_grads = np.absolute(grads[layer_id])
+                            sum_grads = np.sum(abs_grads, axis=tuple([ax for ax in range(len(l_from_shape)) if ax!= dim]))
+                        if len(last_out_idx)!=to_len:
+                            this_out_idx = get_idx(from_len, to_len, conf, rand, next_2d, sum_grads)
+                        else:
+                            this_out_idx = last_out_idx
                         l_idx.append(this_out_idx)
                     else:
                         raise IndexError(
@@ -243,6 +260,7 @@ def select_channels(w_from, w_to, conf={}, rand=None):
     w_from_shape = [l.shape for l in w_from]
     w_to_shape = [l.shape for l in w_to]
     idx_ret = cut_idx_new(w_from_shape, w_to_shape, conf=conf, rand=rand)
+    print(rand, idx_ret[0][0])
     return crop_channels(w_from, idx_ret)
 
 
@@ -404,6 +422,8 @@ def aggregate_rmcid(
             cut_idx_new(total_model_shapes, [l.shape for l in w_client], conf, rand)
             for w_client, rand in zip(weighted_weights, rands)
         ]
+    else:
+        print("cut_idx_list inherited from client")
     # pdb.set_trace()
     agg_layers = [
         aggregate_layer(
