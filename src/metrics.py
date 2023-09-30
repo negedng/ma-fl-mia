@@ -128,49 +128,49 @@ def attack_on_clients(
     return {"client_results": res, "average": avgs}
 
 
-def evaluate_per_client(
-    conf, model, X_split, Y_split, train_ds=None, val_ds=None, test_ds=None
-):
-    """Server model attack with client data"""
+# def evaluate_per_client(
+#     conf, model, X_split, Y_split, train_ds=None, val_ds=None, test_ds=None
+# ):
+#     """Server model attack with client data"""
 
-    if train_ds is None:
-        train_ds, val_ds, test_ds = datasets.load_data(conf=conf)
-    X_test, Y_test = datasets.get_np_from_ds(test_ds)
+#     if train_ds is None:
+#         train_ds, val_ds, test_ds = datasets.load_data(conf=conf)
+#     X_test, Y_test = datasets.get_np_from_ds(test_ds)
 
-    test_ds = datasets.preprocess_data(test_ds, conf)
+#     test_ds = datasets.preprocess_data(test_ds, conf)
 
-    r = data_allocation.get_mia_datasets_client_balanced(
-        X_split,
-        Y_split,
-        X_test,
-        Y_test,
-        conf["n_attacker_knowledge"],
-        conf["n_attack_sample"],
-        conf["seed"],
-    )
-    results = []
-    for X_client, Y_client in tqdm(zip(X_split, Y_split), total=len(X_split)):
-        c_res = {}
-        train_c_ds = datasets.get_ds_from_np((X_client, Y_client))
-        train_c_ds = datasets.preprocess_data(train_c_ds, conf)
+#     r = data_allocation.get_mia_datasets_client_balanced(
+#         X_split,
+#         Y_split,
+#         X_test,
+#         Y_test,
+#         conf["n_attacker_knowledge"],
+#         conf["n_attack_sample"],
+#         conf["seed"],
+#     )
+#     results = []
+#     for X_client, Y_client in tqdm(zip(X_split, Y_split), total=len(X_split)):
+#         c_res = {}
+#         train_c_ds = datasets.get_ds_from_np((X_client, Y_client))
+#         train_c_ds = datasets.preprocess_data(train_c_ds, conf)
 
-        train_performance = models.evaluate(model, train_c_ds, conf, verbose=0)
-        c_res["train_acc"] = train_performance[1]
+#         train_performance = models.evaluate(model, train_c_ds, conf, verbose=0)
+#         c_res["train_acc"] = train_performance[1]
 
-        len_data = min(len(X_client), len(X_test))
-        c_res["data_size"] = len(X_client)
-        X_ctest = np.concatenate((X_client[:len_data], X_test[:len_data]))
-        Y_ctest = np.concatenate((Y_client[:len_data], Y_test[:len_data]))
-        mia_true = [1.0] * len_data + [0.0] * len_data
-        mia_true = np.array(mia_true)
-        mia_preds = attacks.attack(
-            model,
-            r["attacker_knowledge"],
-            (X_ctest, Y_ctest),
-            models.get_loss(),
-            verbose=0,
-        )
-        for k, v in mia_preds.items():
-            c_res[k] = attacks.calculate_advantage(mia_true, v)
-        results.append(c_res)
-    return results
+#         len_data = min(len(X_client), len(X_test))
+#         c_res["data_size"] = len(X_client)
+#         X_ctest = np.concatenate((X_client[:len_data], X_test[:len_data]))
+#         Y_ctest = np.concatenate((Y_client[:len_data], Y_test[:len_data]))
+#         mia_true = [1.0] * len_data + [0.0] * len_data
+#         mia_true = np.array(mia_true)
+#         mia_preds = attacks.attack(
+#             model,
+#             r["attacker_knowledge"],
+#             (X_ctest, Y_ctest),
+#             models.get_loss(),
+#             verbose=0,
+#         )
+#         for k, v in mia_preds.items():
+#             c_res[k] = attacks.calculate_advantage(mia_true, v)
+#         results.append(c_res)
+#     return results
