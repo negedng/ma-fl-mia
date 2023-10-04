@@ -106,6 +106,7 @@ def attack_on_clients(
             r = evaluate(conf, model, train_c_ds, val_ds, test_ds, verbose=0)
             r["cid"] = cid
             r["local_unit_size"] = local_unit_size
+            r["dataset_size"] = len(Y_split[cid])
             res.append(r)
 
     all_train_acc = [a["train_acc"] for a in res]
