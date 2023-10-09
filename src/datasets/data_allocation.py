@@ -2,7 +2,7 @@ import numpy as np
 
 
 def dirichlet_split(
-    num_classes, num_clients, dirichlet_alpha=1.0, mode="classes", seed=None
+    num_classes, num_clients, dirichlet_alpha=1.0, mode="clients", seed=None
 ):
     """Dirichlet distribution of the data points,
     with mode 'classes', 1.0 is distributed between num_classes class,
@@ -30,6 +30,9 @@ def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", seed=None,
     if split is None:
         if split_mode == "dirichlet":
             split = dirichlet_split(num_classes, num_clients, *args, **kwargs)
+            column_sums = np.sum(split, axis=0)
+            sorted_indices = np.argsort(column_sums)[::-1]
+            split = split[:, sorted_indices]
         elif split_mode == "binary":
             if num_clients == 20:
                 split = [4 / 50] * 10 + [1 / 50] * 10
