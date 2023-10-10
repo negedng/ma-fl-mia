@@ -29,7 +29,7 @@ def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", seed=None,
 
     if split is None:
         if split_mode == "dirichlet":
-            split = dirichlet_split(num_classes, num_clients, *args, **kwargs)
+            split = dirichlet_split(num_classes, num_clients, seed=seed, *args, **kwargs)
             column_sums = np.sum(split, axis=0)
             sorted_indices = np.argsort(column_sums)[::-1]
             split = split[:, sorted_indices]
@@ -75,7 +75,7 @@ def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", seed=None,
 
     X_split = [X[idx] for idx in idx_split]
     Y_split = [Y[idx] for idx in idx_split]
-
+    
     return X_split, Y_split
 
 
