@@ -61,7 +61,7 @@ def evaluate(model, data, conf, verbose=0):
     return r
 
 
-def fit(model, data, conf, verbose=0, validation_data=None, round_config=None):
+def fit(model, data, conf, verbose=0, validation_data=None, round_config=None, early_stopping=False):
     if round_config is not None:
         model.optimizer.lr.assign(round_config["learning_rate"])
     history = model.fit(data, epochs=conf["epochs"], verbose=verbose, validation_data=validation_data)

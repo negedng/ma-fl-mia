@@ -47,7 +47,7 @@ def client_fn(cid: str) -> fl.client.Client:
     return client
 
 
-def train(conf, train_ds=None):
+def train(conf, train_ds=None, val_ds=None):
     global X_split
     global Y_split
     conf["model_id"] = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -85,7 +85,7 @@ def train(conf, train_ds=None):
 
 
     if train_ds is None:
-        train_ds, _, _ = datasets.load_data(conf=conf)
+        train_ds, val_ds, _ = datasets.load_data(conf=conf)
 
     X_train, Y_train = datasets.get_np_from_ds(train_ds)
     conf["len_total_data"] = len(X_train)
@@ -140,10 +140,18 @@ def train(conf, train_ds=None):
                 noise_multiplier=conf["dp_noise"],
             )
 
+    if conf["ma_mode"]!="skip":
+        num_clients = conf["num_clients"] 
+    else:
+        if type(conf["scale_mode"])==int and conf["scale_mode"]<=conf["num_clients"] and conf["scale_mode"]>0:
+            num_clients = conf["scale_mode"]
+        else:
+            raise ValueError("scale_mode, num_client and ma_mode missmatch")
+    print(num_clients)
     # Start simulation
     fl.simulation.start_simulation(
         client_fn=client_fn,
-        num_clients=conf["num_clients"],
+        num_clients=num_clients,
         config=fl.server.ServerConfig(num_rounds=conf["rounds"]),
         strategy=strategy,
         ray_init_args=conf["ray_init_args"],
@@ -155,6 +163,37 @@ def train(conf, train_ds=None):
     )
     if WANDB_EXISTS:
         wandb.finish()
+    
+    # Local training on the skipped clients
+    val_ds = datasets.preprocess_data(val_ds, conf=conf)
+    for cid in range(num_clients, conf["num_clients"],1):
+        local_unit_size = utils.calculate_unit_size(cid, conf, len(X_split[cid]))
+        l_conf = copy.deepcopy(conf)
+        l_conf["local_unit_size"] = local_unit_size
+        l_conf["epochs"] = l_conf["epochs"]*l_conf["rounds"]
+        train_data = (X_split[cid], Y_split[cid])
+        train_ds = datasets.get_ds_from_np(train_data)
+        if l_conf["aug"]:
+            train_ds = datasets.aug_data(train_ds, conf=l_conf)
+        train_ds = datasets.preprocess_data(train_ds, conf=l_conf, shuffle=True)
+        l_model = model_utils.init_model(
+                    l_conf["local_unit_size"],
+                    conf=l_conf,
+                    model_path=None,
+                    static_bn=True,
+                )
+        history = models.fit(l_model, train_ds, l_conf, validation_data=val_ds, early_stopping=True)
+
+        # save client models in last rounds
+        save_path = os.path.join(
+            l_conf["paths"]["models"],
+            l_conf["model_id"],
+            "clients",
+            str(cid),
+            f'saved_model_post_{str(l_conf["rounds"])}',
+        )
+        models.save_model(l_model, save_path)
+
     return model, conf
 
 def eval(model, conf):
@@ -170,15 +209,26 @@ def eval(model, conf):
                 reinit=True
             )
         train_ds, val_ds, test_ds = datasets.load_data(conf=conf)
+        if conf["ma_mode"]=="skip": #Get real train_ds from participating clients
+            if type(conf["scale_mode"])==int and conf["scale_mode"]<=conf["num_clients"] and conf["scale_mode"]>0:
+                num_clients = conf["num_clients"]-conf["scale_mode"]
+            elif type(conf["scale_mode"])==float and conf["scale_mode"]>0 and conf["scale_mode"]<1:
+                num_clients = int(conf["scale_mode"]*conf["num_clients"])
+            else:
+                raise ValueError("scale_mode, num_client and ma_mode missmatch")
+            concat_X = np.concatenate(X_split[:num_clients], axis=0)
+            concat_Y = np.concatenate(Y_split[:num_clients], axis=0)
+            train_data = (concat_X, concat_Y)
+            train_ds = datasets.get_ds_from_np(train_data)
         train_ds = datasets.preprocess_data(train_ds, conf)
         val_ds = datasets.preprocess_data(val_ds, conf, cache=True)
         test_ds = datasets.preprocess_data(test_ds, conf, cache=True)
 
-        results = metrics.evaluate(model_conf, model, train_ds, val_ds, test_ds)
+        results = metrics.evaluate(conf, model, train_ds, val_ds, test_ds)
 
         # Per client eval
         per_client_res = metrics.attack_on_clients(
-            model_conf, X_split, Y_split, train_ds, val_ds, test_ds
+            conf, X_split, Y_split, train_ds, val_ds, test_ds
         )
         if WANDB_EXISTS:
             import wandb
@@ -230,7 +280,7 @@ if __name__ == "__main__":
             conf[k] = v
         print(conf)
         train_ds, val_ds, test_ds = datasets.load_data(conf=conf)
-        model, model_conf = train(conf, train_ds)
+        model, model_conf = train(conf, train_ds, val_ds)
 
         print("Training completed, model evaluation")
         # Evaluate

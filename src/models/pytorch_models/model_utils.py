@@ -143,7 +143,25 @@ class History:
         self.history = {"loss": [], "accuracy": []}
 
 
-def fit(model, data, conf, verbose=0, validation_data=None, round_config=None):
+class EarlyStopper:
+    def __init__(self, patience=5, min_delta=0):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.min_validation_loss = float('inf')
+
+    def early_stop(self, validation_loss):
+        if validation_loss < self.min_validation_loss:
+            self.min_validation_loss = validation_loss
+            self.counter = 0
+        elif validation_loss > (self.min_validation_loss + self.min_delta):
+            self.counter += 1
+            if self.counter >= self.patience:
+                return True
+        return False
+
+
+def fit(model, data, conf, verbose=0, validation_data=None, round_config=None, early_stopping=False):
     model.train() # switch to training mode
     history = History()
     if round_config is not None:
@@ -154,7 +172,9 @@ def fit(model, data, conf, verbose=0, validation_data=None, round_config=None):
         global_params = copy.deepcopy(model).parameters()
     if conf["ma_mode"]=="fjord" and conf["cut_type"]=="random_round":
         new_seed = np.random.randint(2**32-1)
-        model.set_ordered_dropout_channels(new_seed)       
+        model.set_ordered_dropout_channels(new_seed)      
+    if early_stopping:
+        early_stopper = EarlyStopper()
     for epoch in range(conf["epochs"]):
         if conf["ma_mode"]=="fjord" and conf["cut_type"]=="random_epoch":
             new_seed = np.random.randint(2**32-1)
@@ -214,6 +234,9 @@ def fit(model, data, conf, verbose=0, validation_data=None, round_config=None):
             print(f"Epoch {epoch+1}: loss:{epoch_loss}, acc:{epoch_acc}"+v_string)
         history.history["loss"].append(epoch_loss)
         history.history["accuracy"].append(epoch_acc)
+        if early_stopping:
+            if early_stopper.early_stop(val_loss):
+                return history
     return history
 
 

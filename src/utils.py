@@ -101,7 +101,7 @@ def calculate_unit_size(cid, conf, len_train_data):
                 unit_size = conf["unit_size"] // 2
         else:
             raise ValueError('scale mode not recognized{conf["scale_mode"]}')
-    elif conf["ma_mode"] == "rm-cid":
+    elif conf["ma_mode"] == "rm-cid" or conf["ma_mode"]=="skip":
         if type(conf["scale_mode"]) == float and conf["scale_mode"] <= 1.0:
             unit_size = int(conf["unit_size"] * conf["scale_mode"])
         elif type(conf["scale_mode"]) == int and conf["scale_mode"] >= 0 and conf["scale_mode"]<=conf["num_clients"]:
