@@ -21,7 +21,7 @@ def dirichlet_split(
     return split_norm
 
 
-def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", seed=None, *args, **kwargs):
+def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", seed=None, sort=True, *args, **kwargs):
     """Split data in X,Y between 'num_clients' number of clients"""
     assert len(X) == len(Y)
     classes = np.unique(Y)
@@ -30,9 +30,10 @@ def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", seed=None,
     if split is None:
         if split_mode == "dirichlet":
             split = dirichlet_split(num_classes, num_clients, seed=seed, *args, **kwargs)
-            column_sums = np.sum(split, axis=0)
-            sorted_indices = np.argsort(column_sums)[::-1]
-            split = split[:, sorted_indices]
+            if sort:
+                column_sums = np.sum(split, axis=0)
+                sorted_indices = np.argsort(column_sums)[::-1]
+                split = split[:, sorted_indices]
         elif split_mode == "binary":
             if num_clients == 20:
                 split = [4 / 50] * 10 + [1 / 50] * 10
@@ -44,6 +45,13 @@ def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", seed=None,
             split = [1 / num_clients] * num_clients
             split = [split] * num_classes
             split = np.array(split)
+        elif split_mode == "balanced":
+            split = dirichlet_split(1, num_clients, seed=seed, *args, **kwargs)
+            split = split.repeat(num_classes, axis=0)
+            if sort:
+                column_sums = np.sum(split, axis=0)
+                sorted_indices = np.argsort(column_sums)[::-1]
+                split = split[:, sorted_indices]
         else:
             ValueError(f"Split mode not recognized {split_mode}")
     X_split = None
