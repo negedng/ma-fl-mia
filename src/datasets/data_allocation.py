@@ -166,9 +166,9 @@ def get_mia_datasets(
     x_train, y_train = train_data
     x_test, y_test = test_data
     if n_attacker_knowledge<1 and n_attacker_knowledge>0:
-        n_attacker_knowledge = max(int(len(train_data)*n_attacker_knowledge),1)
+        n_attacker_knowledge = max(int(len(x_train)*n_attacker_knowledge),1)
     if n_attack_sample<1 and n_attack_sample>0:
-        n_attack_sample = max(int(len(train_data)*n_attack_sample),1)
+        n_attack_sample = max(int(len(x_train)*n_attack_sample),1)
     train_attacker_id = select_n_index(n_attacker_knowledge, len(x_train), seed=seed)
     test_attacker_id = select_n_index(n_attacker_knowledge, len(x_test), seed=seed)
 
