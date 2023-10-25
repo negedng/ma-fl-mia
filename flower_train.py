@@ -236,6 +236,8 @@ def eval(model, conf):
             wandb_log = copy.deepcopy(results)
             wandb_log["client_results"] = per_client_res["client_results"]
             wandb_log["client_average"] = per_client_res["average"]
+            for k,v in per_client_res["average"]:
+                wandb_log[k] = v
             for k in wandb_log.keys():
                 wandb.define_metric(k, hidden=True)
             wandb.log(wandb_log)
