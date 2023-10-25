@@ -81,6 +81,12 @@ def attack_on_clients(
 
     res = []
     for cid in tqdm(range(len(X_split))):
+        local_unit_size = utils.calculate_unit_size(cid, conf, len(X_split[cid]))
+        conf["local_unit_size"] = local_unit_size
+
+        train_c_ds = datasets.get_ds_from_np((X_split[cid], Y_split[cid]))
+        train_c_ds = datasets.preprocess_data(train_c_ds, conf=conf)
+
         model_root_path = conf["paths"]["models"]
         model_id = conf["model_id"]
         last_epoch = str(conf["rounds"])
@@ -88,12 +94,11 @@ def attack_on_clients(
         model_path = os.path.join(
             model_root_path, model_id, "clients", str(cid), epoch_id
         )
+        r_post = None
         if not os.path.exists(model_path):
             if conf["active_fraction"]==1.0:
                 print("Unexpected behavior: Client model missing")
         else:
-            local_unit_size = utils.calculate_unit_size(cid, conf, len(X_split[cid]))
-            conf["local_unit_size"] = local_unit_size
             model = model_utils.init_model(
                 unit_size=local_unit_size,
                 conf=conf,
@@ -101,22 +106,56 @@ def attack_on_clients(
                 keep_scaling=True,
                 static_bn=True
             )
-            train_c_ds = datasets.get_ds_from_np((X_split[cid], Y_split[cid]))
-            train_c_ds = datasets.preprocess_data(train_c_ds, conf=conf)
-            r = evaluate(conf, model, train_c_ds, val_ds, test_ds, verbose=0)
-            r["cid"] = cid
-            r["local_unit_size"] = local_unit_size
-            r["dataset_size"] = len(Y_split[cid])
-            res.append(r)
+
+            r_post = evaluate(conf, model, train_c_ds, val_ds, test_ds, verbose=0)
+        epoch_id = "saved_model_pre_" + last_epoch
+        model_path = os.path.join(
+            model_root_path, model_id, "clients", str(cid), epoch_id
+        )
+        r_pre = None
+        if not os.path.exists(model_path):
+            if conf["active_fraction"]==1.0:
+                print("Unexpected behavior: Client model missing")
+        else:
+            model = model_utils.init_model(
+                unit_size=local_unit_size,
+                conf=conf,
+                model_path=model_path,
+                keep_scaling=True,
+                static_bn=True
+            )
+
+            r_pre = evaluate(conf, model, train_c_ds, val_ds, test_ds, verbose=0)
+
+        if r_pre is None:
+            r_pre = r_post
+        if r_post is None:
+            r_post = r_pre
+
+        r = {"pre":r_pre, "post":r_post}
+        for k,v in r_pre.items():
+            r[k] = v
+        for k,v in r_post.items():
+            if "adv" in k:
+                r[k] = v
+
+        r["cid"] = cid
+        r["local_unit_size"] = local_unit_size
+        r["dataset_size"] = len(Y_split[cid])
+        res.append(r)
 
     all_train_acc = [a["train_acc"] for a in res]
     avgs = {
         "avg_train_acc": np.mean(all_train_acc),
         "std_train_acc": np.std(all_train_acc),
+        "min_train_acc": np.min(all_train_acc),
+        "max_train_acc": np.max(all_train_acc),
     }
     all_test_acc = [a["test_acc"] for a in res]
     avgs["avg_test_acc"] = np.mean(all_test_acc)
     avgs["std_test_acc"] = np.std(all_test_acc)
+    avgs["min_test_acc"] = np.min(all_test_acc)
+    avgs["max_test_acc"] = np.max(all_test_acc)
     adv_list = []
     for k in res[0].keys():
         if "adv" in k:
@@ -125,6 +164,8 @@ def attack_on_clients(
         all_adv = [a[adv] for a in res]
         avgs["avg_" + adv] = np.mean(all_adv)
         avgs["std_" + adv] = np.std(all_adv)
+        avgs["min_" + adv] = np.min(all_adv)
+        avgs["max_" + adv] = np.max(all_adv)
 
     return {"client_results": res, "average": avgs}
 
