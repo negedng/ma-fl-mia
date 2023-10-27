@@ -6,6 +6,7 @@
         "code" : "data/codes/ma-fl-mia/flower_train.py"
         },
     "seed" : 20,
+    "data_shuffle_seed" : null,
     "epochs" : 1,
     "rounds": 70,
     "n_attacker_knowledge" : 100,

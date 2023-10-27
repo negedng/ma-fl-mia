@@ -31,7 +31,8 @@ def test(model_path, overwrite=False):
         conf["num_clients"],
         split_mode=split_mode,
         mode="clients",
-        seed=conf["seed"],
+        distribution_seed=conf["seed"],
+        shuffle_seed=conf["data_shuffle_seed"],
         dirichlet_alpha=conf["dirichlet_alpha"],
     )
 
@@ -84,7 +85,8 @@ def test_all(model_path):
         conf["num_clients"],
         split_mode=split_mode,
         mode="clients",
-        seed=conf["seed"],
+        distribution_seed=conf["seed"],
+        shuffle_seed=conf["data_shuffle_seed"],
         dirichlet_alpha=conf["dirichlet_alpha"],
     )
 
@@ -106,9 +108,9 @@ def test_all(model_path):
         res[idx]["global"] = results
 
         # Per client eval
-        results = metrics.evaluate_per_client(
-            conf, model, X_split, Y_split, train_ds, val_ds, test_ds
-        )
+        # results = metrics.evaluate_per_client(
+        #     conf, model, X_split, Y_split, train_ds, val_ds, test_ds
+        # )
         res[idx]["local"] = results
         print(results)
     with open(os.path.join(model_path, "all_model_results.json"), "w") as f:

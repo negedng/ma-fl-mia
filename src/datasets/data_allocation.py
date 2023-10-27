@@ -21,15 +21,18 @@ def dirichlet_split(
     return split_norm
 
 
-def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", seed=None, sort=True, *args, **kwargs):
+def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", distribution_seed=None, shuffle_seed=None, sort=True, *args, **kwargs):
     """Split data in X,Y between 'num_clients' number of clients"""
     assert len(X) == len(Y)
     classes = np.unique(Y)
     num_classes = len(classes)
 
+    if shuffle_seed is None:
+        shuffle_seed = distribution_seed
+
     if split is None:
         if split_mode == "dirichlet":
-            split = dirichlet_split(num_classes, num_clients, seed=seed, *args, **kwargs)
+            split = dirichlet_split(num_classes, num_clients, seed=distribution_seed, *args, **kwargs)
             if sort:
                 column_sums = np.sum(split, axis=0)
                 sorted_indices = np.argsort(column_sums)[::-1]
@@ -46,7 +49,7 @@ def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", seed=None,
             split = [split] * num_classes
             split = np.array(split)
         elif split_mode == "balanced":
-            split = dirichlet_split(1, num_clients, seed=seed, *args, **kwargs)
+            split = dirichlet_split(1, num_clients, seed=distribution_seed, *args, **kwargs)
             split = split.repeat(num_classes, axis=0)
             if sort:
                 column_sums = np.sum(split, axis=0)
@@ -60,7 +63,7 @@ def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", seed=None,
 
     for i, cls in enumerate(classes):
         idx_cls = np.where(Y == cls)[0]
-        np.random.RandomState(seed=seed).shuffle(idx_cls)
+        np.random.default_rng(seed=shuffle_seed).shuffle(idx_cls)
         cls_num_example = len(idx_cls)
         cls_split = np.rint(split[i] * cls_num_example)
 
