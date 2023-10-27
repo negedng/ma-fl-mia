@@ -45,6 +45,7 @@ class FlowerClient(fl.client.NumPyClient):
     def set_parameters(self, weights, config):
         """set weights either as a simple update or model agnostic way"""
         if "channel_idx_list" in config.keys():
+            print("IDs from config")
             cp_weights = model_aggregation.crop_channels(weights, config["channel_idx_list"])
             models.set_weights(self.model, cp_weights)
         elif self.conf["ma_mode"] == "heterofl":
@@ -57,8 +58,7 @@ class FlowerClient(fl.client.NumPyClient):
                 rand = config["round_seed"]
             else:
                 rand = self.cid
-                print("Warning, obsolete")
-
+                raise IndexError("Warning, obsolete 'rand' selection")
             if self.conf["cut_type"]=="maxgrad" or self.conf["cut_type"]=="softmaxgrad":
                 train_ds = datasets.get_ds_from_np(self.train_data)
                 if self.conf["aug"]:

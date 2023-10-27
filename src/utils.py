@@ -46,9 +46,10 @@ def get_random_permutation(cid, total_clients, seed):
     return np.random.RandomState(seed=seed).permutation(total_clients)[cid]
 
 
-def get_random_permutation_for_all(cids, seed, total_clients=None, permutate="repeated"):
+def get_random_permutation_for_all(cids, seed, total_clients=None, permutate="repeated", groups=4):
     if total_clients is None:
         total_clients = len(cids)
+
     if permutate=="repeated":
         rands = {
             cid:get_random_permutation(idx%total_clients, total_clients, seed) for idx, cid in enumerate(sorted(cids))
@@ -56,6 +57,14 @@ def get_random_permutation_for_all(cids, seed, total_clients=None, permutate="re
     elif permutate=="incremental":
         rands = {
             cid:get_random_permutation(idx%total_clients, total_clients, seed)+seed*total_clients for idx, cid in enumerate(sorted(cids))
+        }
+    elif permutate=="group-repeated":
+        rands = {
+            cid:get_random_permutation(idx%total_clients, total_clients, seed)%groups for idx, cid in enumerate(sorted(cids))
+        }
+    elif permutate=="group-incremental":
+        rands = {
+            cid:get_random_permutation(idx%total_clients, total_clients, seed)%groups+seed*total_clients for idx, cid in enumerate(sorted(cids))
         }
     elif permutate=="static":
         rands = {
