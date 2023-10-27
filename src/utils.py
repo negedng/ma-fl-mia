@@ -58,9 +58,17 @@ def get_random_permutation_for_all(cids, seed, total_clients=None, permutate="re
         rands = {
             cid:get_random_permutation(idx%total_clients, total_clients, seed)+seed*total_clients for idx, cid in enumerate(sorted(cids))
         }
+    elif permutate=="one-repeated":
+        rands = {
+            cid:1 for idx, cid in enumerate(sorted(cids))
+        }
     elif permutate=="group-repeated":
         rands = {
             cid:get_random_permutation(idx%total_clients, total_clients, seed)%groups for idx, cid in enumerate(sorted(cids))
+        }
+    elif permutate=="one-incremental":
+        rands = {
+            cid:seed*total_clients for idx, cid in enumerate(sorted(cids))
         }
     elif permutate=="group-incremental":
         rands = {
