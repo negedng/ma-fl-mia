@@ -72,7 +72,8 @@ def attack_on_clients(
                 conf["num_clients"],
                 split_mode=conf["split_mode"],
                 mode="clients",
-                seed=conf["seed"],
+                distribution_seed=conf["seed"],
+                shuffle_seed=conf["data_shuffle_seed"],
                 dirichlet_alpha=conf["dirichlet_alpha"],
             )
         train_ds = datasets.preprocess_data(train_ds, conf)
