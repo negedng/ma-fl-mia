@@ -24,6 +24,7 @@ def evaluate(conf, model, train_ds=None, val_ds=None, test_ds=None, verbose=1):
         conf["n_attacker_knowledge"],
         conf["n_attack_sample"],
         conf["seed"],
+        min_attacker_knowledge=conf["min_attacker_knowledge"]
     )
 
     train_performance = models.evaluate(model, train_ds, conf, verbose=verbose)
