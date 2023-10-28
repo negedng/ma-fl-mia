@@ -95,7 +95,8 @@ def train(conf, train_ds=None, val_ds=None):
         conf["num_clients"],
         split_mode=conf["split_mode"],
         mode="clients",
-        seed=conf["seed"],
+        distribution_seed=conf["seed"],
+        shuffle_seed=conf["data_shuffle_seed"],
         dirichlet_alpha=conf["dirichlet_alpha"],
     )
 
