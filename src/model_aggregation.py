@@ -152,7 +152,7 @@ def get_idx(from_len, to_len, conf, rand, next_2d, grads=None):
     if rand is None:
         rand = 0  #!TODO heterofl shortcut
     
-    if conf["cut_type"]=="submatrix":
+    if conf["cut_type"]=="submatrix" or conf["ma_mode"]=="heterofl":
         if rand % 4 == 0:
             return list(range(to_len))
         if rand % 4 == 2:
