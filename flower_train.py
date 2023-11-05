@@ -86,19 +86,26 @@ def train(conf, train_ds=None, val_ds=None):
 
     if train_ds is None:
         train_ds, val_ds, _ = datasets.load_data(conf=conf)
-
-    X_train, Y_train = datasets.get_np_from_ds(train_ds)
-    conf["len_total_data"] = len(X_train)
-    X_split, Y_split = data_allocation.split_data(
-        X_train,
-        Y_train,
-        conf["num_clients"],
-        split_mode=conf["split_mode"],
-        mode="clients",
-        distribution_seed=conf["seed"],
-        shuffle_seed=conf["data_shuffle_seed"],
-        dirichlet_alpha=conf["dirichlet_alpha"],
-    )
+    if conf["dataset"]=="FEMNIST":
+        X_split, Y_split = data_allocation.split_femnist(train_ds,
+                                                         conf["num_clients"],
+                                                         seed=conf["seed"])
+        val_ds = datasets.get_np_from_femnist(val_ds)
+        val_ds = datasets.get_ds_from_np(val_ds)
+        print([len(y) for y in Y_split])
+    else:
+        X_train, Y_train = datasets.get_np_from_ds(train_ds)
+        conf["len_total_data"] = len(X_train)
+        X_split, Y_split = data_allocation.split_data(
+            X_train,
+            Y_train,
+            conf["num_clients"],
+            split_mode=conf["split_mode"],
+            mode="clients",
+            distribution_seed=conf["seed"],
+            shuffle_seed=conf["data_shuffle_seed"],
+            dirichlet_alpha=conf["dirichlet_alpha"],
+        )
 
     initial_model = model_utils.init_model(
         unit_size=conf["unit_size"],
@@ -210,6 +217,13 @@ def eval(model, conf):
                 reinit=True
             )
         train_ds, val_ds, test_ds = datasets.load_data(conf=conf)
+        if conf["dataset"]=="FEMNIST":
+            train_ds = datasets.get_np_from_femnist(train_ds)
+            train_ds = datasets.get_ds_from_np(train_ds)
+            val_ds = datasets.get_np_from_femnist(val_ds)
+            val_ds = datasets.get_ds_from_np(val_ds)
+            test_ds = datasets.get_np_from_femnist(test_ds)
+            test_ds = datasets.get_ds_from_np(test_ds)
         if conf["ma_mode"]=="skip": #Get real train_ds from participating clients
             if type(conf["scale_mode"])==int and conf["scale_mode"]<=conf["num_clients"] and conf["scale_mode"]>0:
                 num_clients = conf["num_clients"]-conf["scale_mode"]
@@ -268,7 +282,10 @@ if __name__ == "__main__":
         conf[k] = v
 
     train_ds, val_ds, test_ds = datasets.load_data(conf=conf)
-    X_val, Y_val = datasets.get_np_from_ds(val_ds)
+    if conf["dataset"]=="FEMNIST":
+        X_val, Y_val = datasets.get_np_from_femnist(val_ds)
+    else:
+        X_val, Y_val = datasets.get_np_from_ds(val_ds)
 
     f_name = datetime.now().strftime("%Y%m%d-%H%M%S")
     conf["exp_name"] = f_name

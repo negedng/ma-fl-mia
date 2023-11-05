@@ -4,6 +4,7 @@ import torch
 import numpy as np
 from PIL import Image
 import copy
+import json
 
 
 def load_data(dataset_mode="CIFAR10", val_split=True, conf={}):
@@ -55,23 +56,62 @@ def load_data(dataset_mode="CIFAR10", val_split=True, conf={}):
         else:
             valset = copy.deepcopy(testset)
 
-        return trainset, valset, testset        
+        return trainset, valset, testset   
+    if dataset_mode=="FEMNIST":
+        with open("./dump/dataset/femnist/data/test/all_data_0_niid_2_keep_300_test_9.json") as f:
+            testset = json.load(f)
+        data = None
+        with open("./dump/dataset/femnist/data/train/all_data_0_niid_2_keep_300_train_9.json") as f:
+            data = json.load(f)
+        if val_split:
+
+            len_val = len(data["users"]) / 20
+            len_train = len(data["users"]) - len_val
+            idx_list = data["users"]
+            np.random.default_rng(seed=conf["seed"]).shuffle(idx_list)
+            idx_train = idx_list[:int(len_train)]
+            idx_val = idx_list[int(len_train):]
+            trainset = femnist_filter(data, idx_train)
+            valset = femnist_filter(data, idx_val)
+        else:
+            trainset = data
+            valset = copy.deepcopy(testset)
+            
+        return trainset, valset, testset
     raise NotImplementedError(dataset_mode)
 
+
+def femnist_filter(data, idx_list):
+    ret_data = {"user_data":{}}
+    idx_in_order = np.where(np.isin(np.array(data["users"]),np.array(idx_list)))
+    ret_data["users"] = list(np.array(data["users"])[idx_in_order])
+    ret_data["num_samples"] = list(np.array(data["num_samples"])[idx_in_order])
+    for idx in ret_data["users"]:
+        print(idx)
+        ret_data["user_data"][idx] = data["user_data"][idx]
+    return ret_data
 
 def preprocess_data(data, conf, shuffle=False, cache=False):
     """From torch.utils.data.Dataset to DataLoader"""
     add_transforms = []
     add_transforms.append(torchvision.transforms.ToTensor())
     if not conf["data_normalize"]:
-        add_transforms.append(torchvision.transforms.Lambda(lambda x: x * 255))
+        if conf["dataset"]=="CIFAR10" or conf["dataset"]=="CIFAR100":
+            add_transforms.append(torchvision.transforms.Lambda(lambda x: x * 255))
     if conf["data_centralize"]:
         #!TODO check these numbers
-        add_transforms.append(
-            torchvision.transforms.Normalize(
-                (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+        if conf["dataset"]=="CIFAR10":
+            add_transforms.append(
+                torchvision.transforms.Normalize(
+                    (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+                )
             )
-        )
+        elif conf["dataset"]=="CIFAR100":
+            raise NotImplementedError("Norm params unknown")
+        elif conf["dataset"]=="FEMNIST":
+            raise NotImplementedError("Norm params unknown")
+        else:
+            raise NotImplementedError("Dataset unknown", conf["dataset"])
 
     if data.transform is None:
         data.transform = torchvision.transforms.Compose([])
@@ -84,6 +124,23 @@ def preprocess_data(data, conf, shuffle=False, cache=False):
     )
     return ds
 
+
+import numpy as np
+def get_np_from_femnist(femnist_dataset, return_writers=False):
+    x = []
+    y = []
+    w = []
+    for k, v in femnist_dataset["user_data"].items():
+        x += v["x"]
+        y += v["y"]
+        w += [k]*len(v["y"])
+    x = np.array(x)
+    x = x.reshape(-1, 28, 28)
+    y = np.array(y)
+    w = np.array(w)
+    if return_writers:
+        return x,y,w
+    return x,y
 
 def get_np_from_dataset(dataset):
     return np.array(dataset.data), np.array(dataset.targets)

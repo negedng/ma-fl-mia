@@ -15,7 +15,15 @@ def get_model_architecture(unit_size, model_mode=None, conf={}, *args, **kwargs)
         if TF_MODELS:
             input_shape = (32,32,3)
         else:
-            input_shape = (3,32,32)       
+            input_shape = (3,32,32)     
+    elif conf["dataset"]=="FEMNIST":
+        num_classes = 62
+        if TF_MODELS:
+            input_shape = (28,28,1)
+        else:
+            input_shape = (1,28,28)
+    else:
+        raise NotImplementedError("Dataset not recognized:", conf["dataset"])  
     kwargs["num_classes"] = num_classes
     kwargs["input_shape"] = input_shape
     if (model_mode is None) and ("model_mode" in conf.keys()):

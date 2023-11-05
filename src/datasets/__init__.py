@@ -12,3 +12,5 @@ else:
     from .pytorch_datasets.data_preparation import preprocess_data
     from .pytorch_datasets.data_preparation import get_np_from_ds
     from .pytorch_datasets.data_preparation import get_ds_from_np
+from .pytorch_datasets.data_preparation import get_np_from_femnist
+from .pytorch_datasets.data_preparation import femnist_filter

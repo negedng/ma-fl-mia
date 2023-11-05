@@ -1,5 +1,5 @@
 import numpy as np
-
+from . import get_np_from_femnist, femnist_filter
 
 def dirichlet_split(
     num_classes, num_clients, dirichlet_alpha=1.0, mode="clients", seed=None
@@ -89,7 +89,25 @@ def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", distributi
     
     return X_split, Y_split
 
+def split_femnist(femnist_json, num_clients, seed=None):
+    X, Y, W = get_np_from_femnist(femnist_json, return_writers=True)
 
+    user_list = list(np.unique(W))
+    np.random.default_rng(seed=seed).shuffle(user_list)
+
+    num_writers = [3,6,9,12,15,18,21,24,27]
+    split_user_idx = []
+    for w in num_writers:
+        split_user_idx.append(user_list[:w])
+        user_list = user_list[w:]
+    split_user_idx.append(user_list)
+    split_user_idx.reverse()
+    X_split = [ X[np.isin(W,u_list)] for u_list in split_user_idx]
+    Y_split = [ Y[np.isin(W,u_list)] for u_list in split_user_idx]
+    return X_split, Y_split
+
+
+    
 # def get_mia_datasets_client_balanced(
 #     X_split,
 #     Y_split,
