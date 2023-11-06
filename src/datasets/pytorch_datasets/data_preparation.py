@@ -96,20 +96,28 @@ def preprocess_data(data, conf, shuffle=False, cache=False):
     add_transforms = []
     add_transforms.append(torchvision.transforms.ToTensor())
     if not conf["data_normalize"]:
-        if conf["dataset"]=="CIFAR10" or conf["dataset"]=="CIFAR100":
+        if conf["dataset"]=="CIFAR10" or conf["dataset"]=="CIFAR100" or conf["dataset"]=="FEMNIST":
             add_transforms.append(torchvision.transforms.Lambda(lambda x: x * 255))
     if conf["data_centralize"]:
         #!TODO check these numbers
         if conf["dataset"]=="CIFAR10":
             add_transforms.append(
                 torchvision.transforms.Normalize(
-                    (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+                    (0.4914, 0.4822, 0.4465), (0.2470, 0.2434, 0.2615)
                 )
             )
         elif conf["dataset"]=="CIFAR100":
-            raise NotImplementedError("Norm params unknown")
+            add_transforms.append(
+                torchvision.transforms.Normalize(
+                    (0.5071, 0.4865, 0.4409), (0.2673, 0.2564, 0.2761)
+                )
+            )
         elif conf["dataset"]=="FEMNIST":
-            raise NotImplementedError("Norm params unknown")
+            add_transforms.append(
+                torchvision.transforms.Normalize(
+                    (0.9652), (0.1559)
+                )
+            )
         else:
             raise NotImplementedError("Dataset unknown", conf["dataset"])
 
@@ -125,7 +133,6 @@ def preprocess_data(data, conf, shuffle=False, cache=False):
     return ds
 
 
-import numpy as np
 def get_np_from_femnist(femnist_dataset, return_writers=False):
     x = []
     y = []
