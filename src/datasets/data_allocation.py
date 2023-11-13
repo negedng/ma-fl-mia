@@ -86,7 +86,7 @@ def split_data(X, Y, num_clients, split=None, split_mode="dirichlet", distributi
 
     X_split = [X[idx] for idx in idx_split]
     Y_split = [Y[idx] for idx in idx_split]
-    
+    print([len(y) for y in X_split])
     return X_split, Y_split
 
 def split_femnist(femnist_json, num_clients, seed=None):

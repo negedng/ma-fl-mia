@@ -1,13 +1,26 @@
 import torchvision
-from torch.utils.data import random_split
+from torch.utils.data import random_split, Dataset
 import torch
 import numpy as np
 from PIL import Image
 import copy
 import json
 
+class SubsetDataset(Dataset): # https://discuss.pytorch.org/t/torch-utils-data-dataset-random-split/32209/3 
+    def __init__(self, subset, transform=None):
+        self.subset = subset
+        self.transform = transform
+        
+    def __getitem__(self, index):
+        x, y = self.subset[index]
+        if self.transform:
+            x = self.transform(x)
+        return x, y
+        
+    def __len__(self):
+        return len(self.subset)
 
-def load_data(dataset_mode="CIFAR10", val_split=True, conf={}):
+def load_data(dataset_mode="CIFAR10", val_split=True, val_ratio = 0.2, conf={}):
     """Load datasets into dataset object"""
     if "dataset" in conf.keys():
         dataset_mode = conf["dataset"]
@@ -26,16 +39,17 @@ def load_data(dataset_mode="CIFAR10", val_split=True, conf={}):
         )
 
         if val_split:
-            len_val = len(trainset) / 20
+            len_val = int(len(trainset) * val_ratio)
             len_train = len(trainset) - len_val
             trainset, valset = random_split(
                 trainset,
                 [len_train, len_val],
                 torch.Generator().manual_seed(conf["seed"]),
             )
+            trainset = SubsetDataset(trainset)
+            valset = SubsetDataset(valset)
         else:
             valset = copy.deepcopy(testset)
-
         return trainset, valset, testset
     if dataset_mode == "CIFAR100":
         trainset = torchvision.datasets.CIFAR100(
@@ -46,13 +60,15 @@ def load_data(dataset_mode="CIFAR10", val_split=True, conf={}):
         )
 
         if val_split:
-            len_val = len(trainset) / 20
+            len_val = int(len(trainset) * val_ratio)
             len_train = len(trainset) - len_val
             trainset, valset = random_split(
                 trainset,
                 [len_train, len_val],
                 torch.Generator().manual_seed(conf["seed"]),
             )
+            trainset = SubsetDataset(trainset)
+            valset = SubsetDataset(valset)
         else:
             valset = copy.deepcopy(testset)
 
@@ -65,7 +81,7 @@ def load_data(dataset_mode="CIFAR10", val_split=True, conf={}):
             data = json.load(f)
         if val_split:
 
-            len_val = len(data["users"]) / 20
+            len_val = len(data["users"]) * val_ratio
             len_train = len(data["users"]) - len_val
             idx_list = data["users"]
             np.random.default_rng(seed=conf["seed"]).shuffle(idx_list)
@@ -87,7 +103,7 @@ def femnist_filter(data, idx_list):
     ret_data["users"] = list(np.array(data["users"])[idx_in_order])
     ret_data["num_samples"] = list(np.array(data["num_samples"])[idx_in_order])
     for idx in ret_data["users"]:
-        print(idx)
+        #print(idx)
         ret_data["user_data"][idx] = data["user_data"][idx]
     return ret_data
 
@@ -145,6 +161,11 @@ def get_np_from_femnist(femnist_dataset, return_writers=False):
     x = x.reshape(-1, 28, 28)
     y = np.array(y)
     w = np.array(w)
+    #f = np.isin(y, np.array([0,1,2,3,4,5,6,7,8,9]))
+    #x = x[f]
+    #y = y[f]
+    #w = w[f]
+    #print(len(y))
     if return_writers:
         return x,y,w
     return x,y
