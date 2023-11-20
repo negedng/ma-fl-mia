@@ -224,7 +224,19 @@ def cut_idx_new(w_from_shape, w_to_shape, conf={}, rand=None, grads=None):
                 l_idx.append(list(range(from_len)))
             else:
                 if not conf["cut_layerwise"]:
-                    l_idx.append(get_idx(from_len, to_len, conf, rand, dim))
+                    if is_channel_in(dim, l_from_shape):
+                        this_idx = get_idx(from_len, to_len, conf, rand, dim)
+                    elif is_channel_out(dim, l_from_shape):
+                        if len(last_out_idx) != to_len:
+                            this_idx = get_idx(from_len, to_len, conf, rand, dim)
+                            this_out_idx = this_idx
+                        else:
+                            this_idx = last_out_idx
+                    else:
+                        raise IndexError(
+                            "Something is wrong with IN - OUT channel dimension, expected (..,IN,OUT) or (OUT,IN,..)"
+                        )
+                    l_idx.append(this_idx)
                 else:
                     if is_channel_in(dim, l_from_shape):
                         l_idx.append(last_out_idx)
