@@ -95,6 +95,26 @@ def predict(model, X, verbose=0):
         return outputs
 
 
+def predict_ds(model, dataloader, conf, apply_softmax=True):
+    total_outputs = []
+    labels_all = None
+    model.eval()     # Optional when not using Model Specific layer
+    model.to(get_device(conf))
+    for images, labels in dataloader:
+        l = labels.detach().numpy()
+        if labels_all is None:
+            labels_all = l
+        else:
+            labels_all = np.concatenate((labels_all,l))
+        images, labels = images.to(get_device(conf)), labels.to(get_device(conf))      
+        outputs = model(images)
+        if apply_softmax:
+            outputs = torch.nn.functional.softmax(torch.Tensor(outputs), -1)
+        outputs = outputs.to('cpu').detach().numpy()
+        total_outputs.extend(outputs)
+    return np.array(total_outputs), np.array(labels_all)
+
+
 def np_to_tensor(images):
     return torch.from_numpy(np.transpose(images,(0,3,1,2)))
 
@@ -119,6 +139,12 @@ def predict_losses(model, X, Y, loss_function, verbose=0.5):
             loss = loss_function(outputs, labels, reduction='none').detach().numpy()
             losses.extend(loss)
         return np.array(losses)
+
+
+def get_losses(model, dataloader, loss_function, conf):
+    p, l = predict_ds(model, dataloader, apply_softmax=False, conf=conf)
+    ls = loss_function(torch.from_numpy(p), torch.from_numpy(l), reduction='none').detach().numpy()
+    return ls
 
 
 def calculate_loss(y_true, y_pred, loss_function, reduction='none'):
@@ -161,12 +187,15 @@ class EarlyStopper:
         return False
 
 
-def fit(model, data, conf, verbose=0, validation_data=None, round_config=None, early_stopping=False):
+def fit(model, data, conf, verbose=0, validation_data=None, round_config=None, early_stopping=False, distill_target_model=None):
     model.train() # switch to training mode
     history = History()
     if round_config is not None:
         conf["learning_rate"] = round_config["learning_rate"]
-    optimizer = get_optimizer(model.parameters(), conf)
+    if distill_target_model is not None:
+        optimizer = torch.optim.SGD(model.parameters(), lr=1e-2)
+    else:
+        optimizer = get_optimizer(model.parameters(), conf)
     loss_fn = get_loss(conf)
     if conf["proximal_mu"]!=0:
         global_params = copy.deepcopy(model).parameters()
@@ -193,7 +222,13 @@ def fit(model, data, conf, verbose=0, validation_data=None, round_config=None, e
                 model.set_ordered_dropout_rate(p)
             optimizer.zero_grad()
             outputs = model(images)
-            if conf["proximal_mu"]!=0:
+            if distill_target_model is not None:
+                # Distillation towards this model
+                distill_target_model.train()
+                target_out = distill_target_model(images)
+                loss = torch.nn.KLDivLoss(reduction='batchmean')(torch.nn.functional.log_softmax(outputs, dim=1), torch.nn.functional.softmax(target_out, dim=1))
+                
+            elif conf["proximal_mu"]!=0:
                 proximal_term = 0
                 for local_weights, global_weights in zip(model.parameters(), global_params):
                     proximal_term += (local_weights - global_weights).norm(2)

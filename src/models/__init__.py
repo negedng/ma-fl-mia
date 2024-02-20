@@ -28,7 +28,7 @@ else:
     from .pytorch_models.model_utils import fit, predict, predict_losses
     from .pytorch_models.model_utils import calculate_loss
     from .pytorch_models.model_utils import count_params
-    from .pytorch_models.model_utils import get_gradients
+    from .pytorch_models.model_utils import get_gradients, get_losses, predict_ds, get_device
 
     from .pytorch_models.diao_cnn import get_diao_CNN
     from .pytorch_models.resnet import get_resnet18

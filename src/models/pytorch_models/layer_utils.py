@@ -34,11 +34,11 @@ def get_norm(unit_size, norm_mode, static_bn, ordered_dropout=False, p=None):
         if ordered_dropout:
             norm = ODBatchNorm2d(
                 p=p,
-                num_features=unit_size, momentum=None, track_running_stats=not (static_bn)
+                num_features=unit_size, track_running_stats=not (static_bn)
             )
         else:
             norm = nn.BatchNorm2d(
-                unit_size, momentum=None, track_running_stats=not (static_bn)
+                unit_size, track_running_stats=not (static_bn)
             )
     elif norm_mode == "ln":
         if ordered_dropout:
