@@ -11,6 +11,9 @@ from src import utils, models, attacks, metrics
 from src.models import model_utils
 from exp import setups
 from src import WANDB_EXISTS
+LIRA_ATTACK = True
+TRAJECTORY_ATTACK = True
+YEOM_ATTACK = True
 
 import torch
 
@@ -174,13 +177,13 @@ if __name__ == "__main__":
         description="Attack model with TrajectoryMIA attack"
     )
     parser.add_argument(
-        "model", type=str, help="model id yymmdd-hhmmss"
+        "model", type=str, help="model id [yymmdd-hhmmss,...]"
     )
     parser.add_argument(
         "--cid",
         type=int,
         help="client id to attack",
-        default=0,
+        default=-1,
     )
     parser.add_argument(
         "--root",
@@ -194,26 +197,29 @@ if __name__ == "__main__":
         help="Distill epochs",
         default=25,
     )
+    parser.add_argument(
+        "--swnum",
+        type=int,
+        help="shadow models",
+        default=16,
+    )
+    parser.add_argument(
+        "--swepochs",
+        type=int,
+        help="shadow epochs",
+        default=100,
+    )
     args = parser.parse_args()
-    client_id = args.cid
-    model_id = args.model
+    shadow_epochs = args.swepochs
+    if not (args.model[0]=='[' or args.model[0]=='{'):
+        model_ids = [args.model]
+    else:
+        model_ids = json.loads(args.model)
+
+    model_id = model_ids[0]
     config_path = os.path.join(args.root, model_id, 'config.json')
     with open(config_path) as f:
         conf = json.load(f)
-    model_path = os.path.join(args.root, model_id, 'clients',str(client_id),'saved_model_post_'+str(conf["rounds"]))
-
-
-    if WANDB_EXISTS:
-        import wandb
-        wandb.init(
-            project = "ma-fl-mia",
-            tags = ["federated", conf["ma_mode"], conf["dataset"], conf["model_mode"], "cl#"+str(conf["num_clients"])] + conf["wandb_tags"],
-            group = conf["exp_name"],
-            config=conf,
-            id=conf["model_id"],
-            job_type="attackTrajectory",
-            reinit=True
-        )
 
     train_ds, val_ds, _ = datasets.load_data(conf=conf)
 
@@ -238,191 +244,319 @@ if __name__ == "__main__":
             dirichlet_alpha=conf["dirichlet_alpha"],
         )
 
-    print("Shadow model training")
-    swnet = model_utils.init_model(conf["unit_size"], conf=conf, static_bn=False,)
-    models.print_summary(swnet)
+    if args.cid == -1:
+        cids = list(np.arange(conf["num_clients"]))
+    else:
+        cids = [args.cid]
 
-    X_one_left_out = X_split[0:client_id] + X_split[client_id+1:]
-    Y_one_left_out = Y_split[0:client_id] + Y_split[client_id+1:]
-    X_one_left_out = np.concatenate(X_one_left_out)
-    Y_one_left_out = np.concatenate(Y_one_left_out)
+    all_results = {}
+    print(cids)
+    for client_id in cids:
+        print(f"Data split for {client_id} CID")    
 
-    shuffled_indices = np.arange(len(X_one_left_out))
-    np.random.default_rng(seed=conf['seed']).shuffle(shuffled_indices)
+        X_one_left_out = X_split[0:client_id] + X_split[client_id+1:]
+        Y_one_left_out = Y_split[0:client_id] + Y_split[client_id+1:]
+        X_one_left_out = np.concatenate(X_one_left_out)
+        Y_one_left_out = np.concatenate(Y_one_left_out)
 
-    X_sw = X_one_left_out[:(len(X_one_left_out)//4)]
-    X_nsw = X_one_left_out[(len(X_one_left_out)//4):2*(len(X_one_left_out)//4)]
-    X_dl = X_one_left_out[2*(len(X_one_left_out)//4):]
+        balanced_sample_size = min(len(X_split[client_id]),10000,conf['n_attack_sample'])
 
-    Y_sw = Y_one_left_out[:(len(X_one_left_out)//4)]
-    Y_nsw = Y_one_left_out[(len(X_one_left_out)//4):2*(len(X_one_left_out)//4)]
-    Y_dl = Y_one_left_out[2*(len(X_one_left_out)//4):]
-
-    print(f'Train: {len(X_split[client_id])}, Sw: {len(X_sw)}, NSw: {len(X_nsw)}, Distill: {len(X_dl)}')
-
-    loss_function = models.get_loss(conf)
-    sw_ds = datasets.get_ds_from_np((X_sw, Y_sw))
-    if conf["aug"]:
-        sw_ds = datasets.aug_data(sw_ds, conf=conf)
-    sw_ds = datasets.preprocess_data(sw_ds, conf=conf, shuffle=True)
-
-    sw_conf = copy.deepcopy(conf)
-    sw_conf['epochs'] = 100
-    models.fit(swnet, sw_ds, conf=sw_conf, verbose=1)
-
-    attack_data = {}
-
-    sw_ds = datasets.get_ds_from_np((X_sw, Y_sw))
-    sw_ds = datasets.preprocess_data(sw_ds, conf=conf, shuffle=False)
-    nsw_ds = datasets.get_ds_from_np((X_nsw, Y_nsw))
-    nsw_ds = datasets.preprocess_data(nsw_ds, conf=conf, shuffle=False)
-
-    in_losses = models.get_losses(swnet, sw_ds, loss_function, conf=conf)
-    out_losses = models.get_losses(swnet, nsw_ds, loss_function, conf=conf)
-    attack_data['model_loss_ori'] = np.concatenate((in_losses, out_losses))
-    attack_data['member_status'] = np.array([1]*len(in_losses) + [0]*len(out_losses))
-
-    print("Distill shadow model")
-    dl_ds = datasets.get_ds_from_np((X_dl, Y_dl))
-    if conf["aug"]:
-        dl_ds = datasets.aug_data(dl_ds, conf=conf)
-    dl_ds = datasets.preprocess_data(dl_ds, conf=conf, shuffle=True)
-
-    distill_epochs = args.depochs
-
-    distill_net = model_utils.init_model(conf["unit_size"], conf=conf, static_bn=False,)
-    loss_traj_in = None
-    loss_traj_out = None
-
-
-    for i in range(distill_epochs):
-        print(i)
-        models.fit(distill_net, dl_ds, conf=conf, verbose=0, distill_target_model=swnet)
+        cl_ds = datasets.get_ds_from_np((X_split[client_id][:balanced_sample_size], Y_split[client_id][:balanced_sample_size]))
+        cl_ds = datasets.preprocess_data(cl_ds, conf=conf, shuffle=False)
+        X_test, Y_test = datasets.get_np_from_ds(val_ds)
+        test_ds = datasets.get_ds_from_np((X_test[:balanced_sample_size], Y_test[:balanced_sample_size]))
+        test_ds = datasets.preprocess_data(test_ds, conf=conf, shuffle=False)
         
-        loss_in = models.get_losses(distill_net, sw_ds, loss_function, conf=conf)
-        loss_out = models.get_losses(distill_net, nsw_ds, loss_function, conf=conf)
+        print("Shadow model training")
+        if LIRA_ATTACK:
+            sw_num = args.swnum
+            print(f"LiRA offline with {sw_num} models")
+            from scipy.special import logit
 
-        if loss_traj_in is None:
-            loss_traj_in = loss_in
-            loss_traj_out = loss_out
-        else:
-            loss_traj_in = np.vstack((loss_traj_in, loss_in))
-            loss_traj_out = np.vstack((loss_traj_out, loss_out))
-    attack_data['model_trajectory'] = np.concatenate((loss_traj_in.transpose(),loss_traj_out.transpose()))
-    
-    print("Distill target model")
-    balanced_sample_size = min(len(X_split[client_id]),10000,conf['n_attack_sample'])
+            use_softmax = True
+            use_logit = True
 
-    cl_ds = datasets.get_ds_from_np((X_split[client_id][:balanced_sample_size], Y_split[client_id][:balanced_sample_size]))
-    cl_ds = datasets.preprocess_data(cl_ds, conf=conf, shuffle=False)
-    X_test, Y_test = datasets.get_np_from_ds(val_ds)
-    test_ds = datasets.get_ds_from_np((X_test[:balanced_sample_size], Y_test[:balanced_sample_size]))
-    test_ds = datasets.preprocess_data(test_ds, conf=conf, shuffle=False)
+            pout_list = None
+            pin_list = None
+
+            for i in range(sw_num):
+                print(i)
+                shadow_idx = np.random.RandomState(seed=i).permutation(len(Y_one_left_out))[:10000]
+                X_sw = X_one_left_out[shadow_idx]
+                Y_sw = Y_one_left_out[shadow_idx]
+                sw_ds = datasets.get_ds_from_np((X_sw, Y_sw))
+                if conf["aug"]:
+                    sw_ds = datasets.aug_data(sw_ds, conf=conf)
+                sw_ds = datasets.preprocess_data(sw_ds, conf=conf, shuffle=True)
+
+                swnet = model_utils.init_model(conf["unit_size"], conf=conf, static_bn=False,)
+                sw_conf = copy.deepcopy(conf)
+                sw_conf['epochs'] = shadow_epochs
+                models.fit(swnet, sw_ds, conf=sw_conf, verbose=0)
+                
+                pout, lout = models.predict_ds(swnet, test_ds, apply_softmax=use_softmax, conf=conf)
+                pin, lin = models.predict_ds(swnet, cl_ds, apply_softmax=use_softmax, conf=conf)
+                
+                pout = np.max(pout, -1)
+                pin = np.max(pin, -1)
+                if use_logit:
+
+                    pout = np.clip(pout, 1e-4, 1-1e-4)
+                    pin = np.clip(pin, 1e-4, 1-1e-4)
+                    pout = logit(pout)
+                    pin = logit(pin)
+                
+                if pout_list is None:
+                    pout_list = pout
+                    pin_list = pin
+                else:
+                    pout_list = np.vstack((pout_list,pout))
+                    pin_list = np.vstack((pin_list, pin))
+            
+            pout_list = pout_list.transpose()
+            pin_list = pin_list.transpose()
+            pout_mean = np.mean(pout_list,1)
+            pout_std = np.std(pout_list,1)
+            pin_mean = np.mean(pin_list,1)
+            pin_std = np.std(pin_list,1)
+            print(pin_mean.shape, np.average(pin_mean), pout_mean.shape, np.average(pout_mean))
+
+            # Clean up some space
+            pout_list = None
+            pin_list = None
+
+        loss_function = models.get_loss(conf)
+        if TRAJECTORY_ATTACK:
+            print("TrajectoryMIA")
+            swnet = model_utils.init_model(conf["unit_size"], conf=conf, static_bn=False,)
+            models.print_summary(swnet)
+
+            shuffled_indices = np.arange(len(X_one_left_out))
+            np.random.default_rng(seed=conf['seed']).shuffle(shuffled_indices)
+
+            X_sw = X_one_left_out[:(len(X_one_left_out)//4)]
+            X_nsw = X_one_left_out[(len(X_one_left_out)//4):2*(len(X_one_left_out)//4)]
+            X_dl = X_one_left_out[2*(len(X_one_left_out)//4):]
+
+            Y_sw = Y_one_left_out[:(len(X_one_left_out)//4)]
+            Y_nsw = Y_one_left_out[(len(X_one_left_out)//4):2*(len(X_one_left_out)//4)]
+            Y_dl = Y_one_left_out[2*(len(X_one_left_out)//4):]
+
+            print(f'Train: {len(X_split[client_id])}, Sw: {len(X_sw)}, NSw: {len(X_nsw)}, Distill: {len(X_dl)}')
+
+            
+            sw_ds = datasets.get_ds_from_np((X_sw, Y_sw))
+            if conf["aug"]:
+                sw_ds = datasets.aug_data(sw_ds, conf=conf)
+            sw_ds = datasets.preprocess_data(sw_ds, conf=conf, shuffle=True)
+
+            sw_conf = copy.deepcopy(conf)
+            sw_conf['epochs'] = shadow_epochs
+            models.fit(swnet, sw_ds, conf=sw_conf, verbose=1)
+
+            attack_data = {}
+
+            sw_ds = datasets.get_ds_from_np((X_sw, Y_sw))
+            sw_ds = datasets.preprocess_data(sw_ds, conf=conf, shuffle=False)
+            nsw_ds = datasets.get_ds_from_np((X_nsw, Y_nsw))
+            nsw_ds = datasets.preprocess_data(nsw_ds, conf=conf, shuffle=False)
+
+            in_losses = models.get_losses(swnet, sw_ds, loss_function, conf=conf)
+            out_losses = models.get_losses(swnet, nsw_ds, loss_function, conf=conf)
+            attack_data['model_loss_ori'] = np.concatenate((in_losses, out_losses))
+            attack_data['member_status'] = np.array([1]*len(in_losses) + [0]*len(out_losses))
+
+            print("Distill shadow model")
+            dl_ds = datasets.get_ds_from_np((X_dl, Y_dl))
+            if conf["aug"]:
+                dl_ds = datasets.aug_data(dl_ds, conf=conf)
+            dl_ds = datasets.preprocess_data(dl_ds, conf=conf, shuffle=True)
+
+            distill_epochs = args.depochs
+
+            distill_net = model_utils.init_model(conf["unit_size"], conf=conf, static_bn=False,)
+            loss_traj_in = None
+            loss_traj_out = None
 
 
-    client_model = model_utils.init_model(
-                conf["unit_size"],
-                conf=conf,
-                model_path=model_path,
-                static_bn=True,
-            )
+            for i in range(distill_epochs):
+                print(i)
+                models.fit(distill_net, dl_ds, conf=conf, verbose=0, distill_target_model=swnet)
+                
+                loss_in = models.get_losses(distill_net, sw_ds, loss_function, conf=conf)
+                loss_out = models.get_losses(distill_net, nsw_ds, loss_function, conf=conf)
 
-
-
-    distill_swnet = model_utils.init_model(conf["unit_size"], conf=conf, static_bn=False,)
-    loss_traj_in = None
-    loss_traj_out = None
-
-
-    for i in range(distill_epochs):
-        print(i)
-        models.fit(distill_swnet, dl_ds, conf=conf, verbose=0, distill_target_model=client_model)
+                if loss_traj_in is None:
+                    loss_traj_in = loss_in
+                    loss_traj_out = loss_out
+                else:
+                    loss_traj_in = np.vstack((loss_traj_in, loss_in))
+                    loss_traj_out = np.vstack((loss_traj_out, loss_out))
+            attack_data['model_trajectory'] = np.concatenate((loss_traj_in.transpose(),loss_traj_out.transpose()))
         
-        loss_in = models.get_losses(distill_swnet, cl_ds, loss_function, conf=conf)
-        loss_out = models.get_losses(distill_swnet, test_ds, loss_function, conf=conf)
 
-        if loss_traj_in is None:
-            loss_traj_in = loss_in
-            loss_traj_out = loss_out
-        else:
-            loss_traj_in = np.vstack((loss_traj_in, loss_in))
-            loss_traj_out = np.vstack((loss_traj_out, loss_out))
+        for model_id in model_ids:
+            print(f"Distill target model: {model_id}")
+            model_path = os.path.join(args.root, model_id, 'clients',str(client_id),'saved_model_post_'+str(conf["rounds"]))
+            config_path = os.path.join(args.root, model_id, 'config.json')
+            with open(config_path) as f:
+                client_conf = json.load(f)
+            assert conf['seed']==client_conf['seed']
+            assert conf['data_shuffle_seed']==client_conf['data_shuffle_seed']
 
-    attack_test = {}
-    in_losses = models.get_losses(client_model, cl_ds, loss_function, conf=conf)
-    out_losses = models.get_losses(client_model, test_ds, loss_function, conf=conf)
-    attack_test['model_loss_ori'] = np.concatenate((in_losses, out_losses))
-    attack_test['member_status'] = np.array([1]*len(in_losses) + [0]*len(out_losses))
-    attack_test['model_trajectory'] = np.concatenate((loss_traj_in.transpose(),loss_traj_out.transpose()))
-    print("Building attack model")
 
-    attack_train_set = torch.utils.data.TensorDataset(
-        torch.from_numpy(np.array(attack_data['model_loss_ori'], dtype='f')),
-        torch.from_numpy(np.array(attack_data['model_trajectory'], dtype='f')),
-        torch.from_numpy(np.array(attack_data['member_status'])).type(torch.long),)
 
-    attack_test_set = torch.utils.data.TensorDataset(
-        torch.from_numpy(np.array(attack_test['model_loss_ori'], dtype='f')),
-        torch.from_numpy(np.array(attack_test['model_trajectory'], dtype='f')),
-        torch.from_numpy(np.array(attack_test['member_status'])).type(torch.long),)
 
-    attack_train_loader = torch.utils.data.DataLoader(attack_train_set, batch_size=128, shuffle=True)
-    attack_test_loader = torch.utils.data.DataLoader(attack_test_set, batch_size=128, shuffle=True)    
+            client_model = model_utils.init_model(
+                        client_conf["unit_size"],
+                        conf=client_conf,
+                        model_path=model_path,
+                        static_bn=True,
+                    )
 
-    attack_model = MLP_BLACKBOX(dim_in = attack_data['model_trajectory'].shape[1] + 1)
-    attack_optimizer = torch.optim.SGD(attack_model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0001) 
-    attack_model = attack_model.to(models.get_device(conf))
-    loss_fn = torch.nn.CrossEntropyLoss()
-    max_auc = 0
-    max_acc = 0
+            desired_fpr = [0.001, 0.005, 0.01, 0.03]
+            if TRAJECTORY_ATTACK:
+                distill_cnet = model_utils.init_model(conf["unit_size"], conf=conf, static_bn=False,)
+                loss_traj_in = None
+                loss_traj_out = None
 
-    attack_fit(attack_model, attack_train_loader, attack_optimizer, loss_fn, models.get_device(conf), attack_test_loader=attack_test_loader)
-    val_loss, val_prec1, val_auc, _, _, tpr, fpr = test_mia_attack_model(attack_model, attack_test_loader, loss_fn, 100, 100, models.get_device(conf))
-    print(val_loss, val_prec1, val_auc)
 
-    desired_fpr = [0.001, 0.005, 0.01, 0.03]
-    closest_index = [(np.abs(fpr - d)).argmin() for d in desired_fpr]
-    tpr_at_desired_fpr = tpr[closest_index]
-    print("TrajectoryMIA")
-    print(f"TPR@FPR{desired_fpr}:{tpr_at_desired_fpr}")
+                for i in range(distill_epochs):
+                    print(i)
+                    models.fit(distill_cnet, dl_ds, conf=conf, verbose=0, distill_target_model=client_model)
+                    
+                    loss_in = models.get_losses(distill_cnet, cl_ds, loss_function, conf=conf)
+                    loss_out = models.get_losses(distill_cnet, test_ds, loss_function, conf=conf)
 
-    print("YEOM")
-    pout, lout = models.predict_ds(client_model, test_ds, apply_softmax=False, conf=conf)
-    pin, lin = models.predict_ds(client_model, cl_ds, apply_softmax=False, conf=conf)
+                    if loss_traj_in is None:
+                        loss_traj_in = loss_in
+                        loss_traj_out = loss_out
+                    else:
+                        loss_traj_in = np.vstack((loss_traj_in, loss_in))
+                        loss_traj_out = np.vstack((loss_traj_out, loss_out))
 
-    lsout = loss_function(torch.from_numpy(pout), torch.from_numpy(lout), reduction='none').detach().numpy()
-    lsin = loss_function(torch.from_numpy(pin), torch.from_numpy(lin), reduction='none').detach().numpy()
+                attack_test = {}
+                in_losses = models.get_losses(client_model, cl_ds, loss_function, conf=conf)
+                out_losses = models.get_losses(client_model, test_ds, loss_function, conf=conf)
+                attack_test['model_loss_ori'] = np.concatenate((in_losses, out_losses))
+                attack_test['member_status'] = np.array([1]*len(in_losses) + [0]*len(out_losses))
+                attack_test['model_trajectory'] = np.concatenate((loss_traj_in.transpose(),loss_traj_out.transpose()))
+                print("Building attack model")
 
-    yeom_probs = np.concatenate((lsin, lsout))
+                attack_train_set = torch.utils.data.TensorDataset(
+                    torch.from_numpy(np.array(attack_data['model_loss_ori'], dtype='f')),
+                    torch.from_numpy(np.array(attack_data['model_trajectory'], dtype='f')),
+                    torch.from_numpy(np.array(attack_data['member_status'])).type(torch.long),)
 
-    min_ = np.min(yeom_probs)
-    max_ = np.max(yeom_probs) 
-    yeom_probs = (yeom_probs-min_)/(max_-min_)
-    yeom_probs = 1-yeom_probs
-    yeom_labels = [1]*len(pin) + [0]*len(pout)
-    Yeom_fpr, Yeom_tpr, thresholds = metrics.roc_curve(yeom_labels, yeom_probs)
-    Yeom_roc_auc = metrics.auc(Yeom_fpr, Yeom_tpr)
-    print(Yeom_roc_auc)
-    closest_index = [(np.abs(Yeom_fpr - d)).argmin() for d in desired_fpr]
-    yeom_tpr_at_desired_fpr = Yeom_tpr[closest_index]
-    print(f"TPR@FPR{desired_fpr}:{yeom_tpr_at_desired_fpr}")
-    
-    results = {"auc":{}, "tpr@fpr":{}, "tpr":{"TrajectoryMIA":tpr, "Yeom":Yeom_tpr}, "fpr":{"TrajectoryMIA":fpr, "Yeom":Yeom_fpr}}
-    for fpr, tpr1, tpr2 in zip(desired_fpr, tpr_at_desired_fpr, yeom_tpr_at_desired_fpr):
-        results["tpr@fpr"][fpr] = {"TrajectoryMIA":tpr1, "Yeom":tpr2}
-    results["auc"]={"TrajectoryMIA":val_auc, "Yeom":Yeom_roc_auc}
-    results = {client_id:results}
+                attack_test_set = torch.utils.data.TensorDataset(
+                    torch.from_numpy(np.array(attack_test['model_loss_ori'], dtype='f')),
+                    torch.from_numpy(np.array(attack_test['model_trajectory'], dtype='f')),
+                    torch.from_numpy(np.array(attack_test['member_status'])).type(torch.long),)
 
+                attack_train_loader = torch.utils.data.DataLoader(attack_train_set, batch_size=128, shuffle=True)
+                attack_test_loader = torch.utils.data.DataLoader(attack_test_set, batch_size=128, shuffle=True)    
+
+                attack_model = MLP_BLACKBOX(dim_in = attack_data['model_trajectory'].shape[1] + 1)
+                attack_optimizer = torch.optim.SGD(attack_model.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0001) 
+                attack_model = attack_model.to(models.get_device(conf))
+                loss_fn = torch.nn.CrossEntropyLoss()
+                max_auc = 0
+                max_acc = 0
+
+                attack_fit(attack_model, attack_train_loader, attack_optimizer, loss_fn, models.get_device(conf), attack_test_loader=attack_test_loader, epochs=30)
+                print("TrajectoryMIA")
+                val_loss, val_prec1, traj_val_auc, _, _, tpr, fpr = test_mia_attack_model(attack_model, attack_test_loader, loss_fn, 100, 100, models.get_device(conf))
+                print(val_loss, val_prec1, traj_val_auc)
+
+                closest_index = [(np.abs(fpr - d)).argmin() for d in desired_fpr]
+                traj_tpr_at_desired_fpr = tpr[closest_index]
+                print(f"TPR@FPR{desired_fpr}:{traj_tpr_at_desired_fpr}")
+
+            print("YEOM")
+            pout, lout = models.predict_ds(client_model, test_ds, apply_softmax=False, conf=conf)
+            pin, lin = models.predict_ds(client_model, cl_ds, apply_softmax=False, conf=conf)
+
+            lsout = loss_function(torch.from_numpy(pout), torch.from_numpy(lout), reduction='none').detach().numpy()
+            lsin = loss_function(torch.from_numpy(pin), torch.from_numpy(lin), reduction='none').detach().numpy()
+
+            yeom_probs = np.concatenate((lsin, lsout))
+
+            min_ = np.min(yeom_probs)
+            max_ = np.max(yeom_probs) 
+            yeom_probs = (yeom_probs-min_)/(max_-min_)
+            yeom_probs = 1-yeom_probs
+            yeom_labels = [1]*len(pin) + [0]*len(pout)
+            Yeom_fpr, Yeom_tpr, thresholds = metrics.roc_curve(yeom_labels, yeom_probs)
+            Yeom_roc_auc = metrics.auc(Yeom_fpr, Yeom_tpr)
+            print(Yeom_roc_auc)
+            closest_index = [(np.abs(Yeom_fpr - d)).argmin() for d in desired_fpr]
+            yeom_tpr_at_desired_fpr = Yeom_tpr[closest_index]
+            print(f"TPR@FPR{desired_fpr}:{yeom_tpr_at_desired_fpr}")
+            
+            print("LiRA")
+            pout, lout = models.predict_ds(client_model, test_ds, apply_softmax=use_softmax, conf=conf)
+            pin, lin = models.predict_ds(client_model, cl_ds, apply_softmax=use_softmax, conf=conf)
+            pout = np.max(pout, -1)
+            pin = np.max(pin, -1)
+            if use_logit:
+                pout = np.clip(pout, 1e-4, 1-1e-4)
+                pin = np.clip(pin, 1e-4, 1-1e-4)
+                pout = logit(pout)
+                pin = logit(pin)
+            import scipy
+            pout_pred = scipy.stats.norm.cdf(pout, loc=pout_mean, scale=pout_std)
+            pin_pred = scipy.stats.norm.cdf(pin, loc=pin_mean, scale=pin_std)
+            lira_mlabel = [1]*len(pin_pred) + [0]*len(pout_pred)
+            lira_probs_all_variance = np.concatenate((pin_pred, pout_pred))
+            LiRA_fpr, LiRA_tpr, thresholds = metrics.roc_curve(lira_mlabel, lira_probs_all_variance)
+            LiRA_roc_auc = metrics.auc(LiRA_fpr, LiRA_tpr)
+            print(LiRA_roc_auc)
+            closest_index = [(np.abs(LiRA_fpr - d)).argmin() for d in desired_fpr]
+            lira_tpr_at_desired_fpr = LiRA_tpr[closest_index]
+            print(f"TPR@FPR{desired_fpr}:{lira_tpr_at_desired_fpr}")        
+
+            results = {"auc":{}, "tpr@fpr":{}}
+            for i_fpr, fpr in enumerate(desired_fpr):
+                results["tpr@fpr"][fpr] = {}
+                if TRAJECTORY_ATTACK:
+                    results["tpr@fpr"][fpr]["TrajectoryMIA"] = traj_tpr_at_desired_fpr[i_fpr]
+                if LIRA_ATTACK:
+                    results["tpr@fpr"][fpr]["LiRA"] = lira_tpr_at_desired_fpr[i_fpr]
+                if YEOM_ATTACK:
+                    results["tpr@fpr"][fpr]["Yeom"] = yeom_tpr_at_desired_fpr[i_fpr]
+            results["auc"] = {}
+            if TRAJECTORY_ATTACK:
+                results["auc"]["TrajectoryMIA"] = traj_val_auc
+            if LIRA_ATTACK:
+                results["auc"]["LiRA"] = LiRA_roc_auc
+            if YEOM_ATTACK:
+                results["auc"]["Yeom"] = Yeom_roc_auc
+            print(results)
+        
+            with open(
+                os.path.join(args.root, model_id, f'post_attack_{client_id}.json'),
+                "w",
+            ) as f:
+                f.write(json.dumps(results))
+            if model_id not in all_results.keys():
+                all_results[model_id] = {}
+            all_results[model_id][client_id] = results
+            print(all_results)
+
+    print(all_results)
+    for model_id in all_results.keys():
+        with open(
+            os.path.join(args.root, model_id, f'post_attack.json'),
+            "w",
+        ) as f:
+            f.write(json.dumps(all_results[model_id]))
+
+    if not os.path.exists("./dump/attack_log/"):
+        os.makedirs("./dump/attack_log/")
+    from datetime import datetime
+    f_name = datetime.now().strftime("%Y%m%d-%H%M%S")
     with open(
-        os.path.join(args.root, model_id, f'post_attack_{client_id}.json'),
+        os.path.join("./dump/attack_log",f_name+".json"),
         "w",
     ) as f:
-        f.write(json.dumps(results))
-
-    if WANDB_EXISTS:
-        import wandb
-        wandb_log = results
-        print(wandb_log)
-        wandb.log(wandb_log)
-        wandb.finish()
-    
+        f.write(json.dumps(all_results))

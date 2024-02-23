@@ -3,21 +3,29 @@ from . import get_alexnet, get_diao_CNN, get_resnet18, get_simple_CNN
 from . import load_model_weights, set_weights, prepare_model
 from src import TF_MODELS
 
+
+def get_num_classes(conf):
+    if conf["dataset"]=="CIFAR10":
+        return 10
+    if conf["dataset"]=="CIFAR100":
+        return 100
+    if conf["dataset"]=="FEMNIST":
+        return 62
+
+
 def get_model_architecture(unit_size, model_mode=None, conf={}, *args, **kwargs):
+    num_classes = get_num_classes(conf)
     if ("dataset" not in conf.keys()) or conf["dataset"]=="CIFAR10":
-        num_classes = 10
         if TF_MODELS:
             input_shape = (32,32,3)
         else:
             input_shape = (3,32,32)
     elif conf["dataset"]=="CIFAR100":
-        num_classes = 100
         if TF_MODELS:
             input_shape = (32,32,3)
         else:
             input_shape = (3,32,32)     
     elif conf["dataset"]=="FEMNIST":
-        num_classes = 62
         if TF_MODELS:
             input_shape = (28,28,1)
         else:
