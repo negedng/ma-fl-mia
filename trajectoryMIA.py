@@ -404,11 +404,11 @@ if __name__ == "__main__":
             assert conf['seed']==client_conf['seed']
             assert conf['data_shuffle_seed']==client_conf['data_shuffle_seed']
 
-
+            unit_size = utils.calculate_unit_size(client_id, client_conf, len(X_split[client_id]))
 
 
             client_model = model_utils.init_model(
-                        client_conf["unit_size"],
+                        unit_size,
                         conf=client_conf,
                         model_path=model_path,
                         static_bn=True,
