@@ -413,6 +413,7 @@ if __name__ == "__main__":
                         model_path=model_path,
                         static_bn=True,
                     )
+            client_model.to(models.get_device(conf))
 
             desired_fpr = [0.001, 0.005, 0.01, 0.03]
             if TRAJECTORY_ATTACK:
