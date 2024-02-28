@@ -542,8 +542,8 @@ if __name__ == "__main__":
             if model_id not in all_results.keys():
                 all_results[model_id] = {}
             all_results[model_id][str(client_id)] = results
-            print(all_results)
-
+        print(all_results)
+    print("final")
     print(all_results)
     for model_id in all_results.keys():
         with open(
