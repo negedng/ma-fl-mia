@@ -518,13 +518,13 @@ if __name__ == "__main__":
 
             results = {"auc":{}, "tpr@fpr":{}}
             for i_fpr, fpr in enumerate(desired_fpr):
-                results["tpr@fpr"][fpr] = {}
+                results["tpr@fpr"][str(fpr)] = {}
                 if TRAJECTORY_ATTACK:
-                    results["tpr@fpr"][fpr]["TrajectoryMIA"] = traj_tpr_at_desired_fpr[i_fpr]
+                    results["tpr@fpr"][str(fpr)]["TrajectoryMIA"] = traj_tpr_at_desired_fpr[i_fpr]
                 if LIRA_ATTACK:
-                    results["tpr@fpr"][fpr]["LiRA"] = lira_tpr_at_desired_fpr[i_fpr]
+                    results["tpr@fpr"][str(fpr)]["LiRA"] = lira_tpr_at_desired_fpr[i_fpr]
                 if YEOM_ATTACK:
-                    results["tpr@fpr"][fpr]["Yeom"] = yeom_tpr_at_desired_fpr[i_fpr]
+                    results["tpr@fpr"][str(fpr)]["Yeom"] = yeom_tpr_at_desired_fpr[i_fpr]
             results["auc"] = {}
             if TRAJECTORY_ATTACK:
                 results["auc"]["TrajectoryMIA"] = traj_val_auc
@@ -541,7 +541,7 @@ if __name__ == "__main__":
                 f.write(json.dumps(results))
             if model_id not in all_results.keys():
                 all_results[model_id] = {}
-            all_results[model_id][client_id] = results
+            all_results[model_id][str(client_id)] = results
             print(all_results)
 
     print(all_results)
