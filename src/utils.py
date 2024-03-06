@@ -202,3 +202,43 @@ def indices_of_largest_to_smallest(numbers):
     indices = [index for index, _ in sorted_indices]
     
     return indices
+
+
+def find_best_threshold_numpy(prob_array, true_array, step=0.01):
+    """Given probabilities and true values, returns with the threshold
+    for best accuracy and the accuracy."""
+    # Combine probabilities and true values into a 2D array
+    combined_data = np.column_stack((prob_array, true_array))
+    
+    # Sort the combined data by probabilities in descending order
+    sorted_data = combined_data[combined_data[:, 0].argsort()[::-1]]
+    
+    # Initialize variables to keep track of the best threshold and accuracy
+    best_threshold = 0.0
+    best_accuracy = 0.0
+    
+    # Generate threshold values with the specified step using NumPy
+    thresholds = np.arange(0, 1 + step, step)
+    
+    for threshold in thresholds:
+        # Apply the threshold to classify predictions using NumPy
+        predictions = (sorted_data[:, 0] >= threshold).astype(int)
+        
+        # Calculate accuracy using NumPy
+        accuracy = np.sum(predictions == sorted_data[:, 1]) / len(true_array)
+        
+        # Update the best threshold and accuracy if the current accuracy is better
+        if accuracy > best_accuracy:
+            best_threshold = threshold
+            best_accuracy = accuracy
+    
+    return best_threshold, best_accuracy
+
+def calculate_accuracy_at_threshold(prob_array, true_array, threshold):
+    # Apply the threshold to classify predictions using NumPy
+    predictions = (prob_array >= threshold).astype(int)
+    
+    # Calculate accuracy using NumPy
+    accuracy = np.sum(predictions == true_array) / len(true_array)
+    
+    return accuracy

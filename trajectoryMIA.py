@@ -124,12 +124,15 @@ def test_mia_attack_model(model, attack_test_loader, loss_fn, max_auc, max_acc, 
     correct = 0
     auc_ground_truth = None
     auc_pred = None
+    total_conf = []
     with torch.no_grad():
         for batch_idx, (model_loss_ori, model_trajectory, member_status) in enumerate(attack_test_loader):
 
             input = torch.cat((model_trajectory, model_loss_ori.unsqueeze(1)),1) 
             input = input.to(device)
             output = model(input)
+            output_conf = torch.nn.functional.softmax(torch.Tensor(output), -1).to('cpu').detach().numpy()[:,-1]
+            total_conf.extend(output_conf)
             member_status = member_status.to(device)
             test_loss += loss_fn(output, member_status).item()
             pred0, pred1 = output.max(1, keepdim=True)
@@ -154,7 +157,7 @@ def test_mia_attack_model(model, attack_test_loader, loss_fn, max_auc, max_acc, 
     if accuracy > max_acc:
         max_acc = accuracy
 
-    return test_loss, accuracy/100., auc, max_auc, max_acc, tpr, fpr
+    return test_loss, accuracy/100., auc, max_auc, max_acc, tpr, fpr, total_conf
 
 
 def attack_fit(model, attack_train_loader, optimizer, loss_fn, device, epochs=100, attack_test_loader=None):
@@ -163,7 +166,7 @@ def attack_fit(model, attack_train_loader, optimizer, loss_fn, device, epochs=10
     for epoch in range(epochs):
         loss, acc = train_mia_attack_model(model, attack_train_loader, optimizer, loss_fn, device)
         if attack_test_loader is not None:
-            val_loss, val_prec1, val_auc, max_auc, max_acc, _, _ = test_mia_attack_model(model, attack_test_loader, loss_fn, max_auc, max_acc, device)
+            val_loss, val_prec1, val_auc, max_auc, max_acc, _, _, _ = test_mia_attack_model(model, attack_test_loader, loss_fn, max_auc, max_acc, device)
             print(f'epoch: {epoch}, loss:{loss:.5f}, acc:{acc:.4f}, val_loss:{val_loss:.5f}, val_acc:{val_prec1:.4f}, val_auc:{val_auc:.2f}')
         else:
             print(f'epoch: {epoch}, loss:{loss}, acc:{acc}')
@@ -253,7 +256,17 @@ if __name__ == "__main__":
     print(cids)
     for client_id in cids:
         print(f"Data split for {client_id} CID")    
+        X_test, Y_test = datasets.get_np_from_ds(val_ds)
+        r = data_allocation.get_mia_datasets(
+                (X_split[client_id], Y_split[client_id]),
+                (X_test, Y_test),
+                conf["n_attacker_knowledge"],
+                conf["n_attack_sample"],
+                conf["seed"],
+                min_attacker_knowledge=conf["min_attacker_knowledge"]
+            )
 
+        print("Get shadow dataset")
         X_one_left_out = X_split[0:client_id] + X_split[client_id+1:]
         Y_one_left_out = Y_split[0:client_id] + Y_split[client_id+1:]
         X_one_left_out = np.concatenate(X_one_left_out)
@@ -261,9 +274,15 @@ if __name__ == "__main__":
 
         balanced_sample_size = min(len(X_split[client_id]),10000,conf['n_attack_sample'])
 
+        att_kn_in_ds = datasets.get_ds_from_np(r["attacker_knowledge"]['in_train_data'])
+        att_kn_in_ds = datasets.preprocess_data(att_kn_in_ds, conf=conf, shuffle=False)
+        att_kn_out_ds = datasets.get_ds_from_np(r["attacker_knowledge"]['not_train_data'])
+        att_kn_out_ds = datasets.preprocess_data(att_kn_out_ds, conf=conf, shuffle=False)
+
+
         cl_ds = datasets.get_ds_from_np((X_split[client_id][:balanced_sample_size], Y_split[client_id][:balanced_sample_size]))
         cl_ds = datasets.preprocess_data(cl_ds, conf=conf, shuffle=False)
-        X_test, Y_test = datasets.get_np_from_ds(val_ds)
+        
         test_ds = datasets.get_ds_from_np((X_test[:balanced_sample_size], Y_test[:balanced_sample_size]))
         test_ds = datasets.preprocess_data(test_ds, conf=conf, shuffle=False)
         
@@ -278,6 +297,9 @@ if __name__ == "__main__":
 
             pout_list = None
             pin_list = None
+
+            att_pout_list = None
+            att_pin_list = None
 
             for i in range(sw_num):
                 print(i)
@@ -296,22 +318,36 @@ if __name__ == "__main__":
                 
                 pout, lout = models.predict_ds(swnet, test_ds, apply_softmax=use_softmax, conf=conf)
                 pin, lin = models.predict_ds(swnet, cl_ds, apply_softmax=use_softmax, conf=conf)
-                
                 pout = np.max(pout, -1)
                 pin = np.max(pin, -1)
+
+                att_pin, _ = models.predict_ds(swnet, att_kn_in_ds, apply_softmax=use_softmax, conf=conf)
+                att_pout, _ = models.predict_ds(swnet, att_kn_out_ds, apply_softmax=use_softmax, conf=conf)
+                att_pout = np.max(att_pout, -1)
+                att_pin = np.max(att_pin, -1)                
+
                 if use_logit:
 
                     pout = np.clip(pout, 1e-4, 1-1e-4)
                     pin = np.clip(pin, 1e-4, 1-1e-4)
                     pout = logit(pout)
                     pin = logit(pin)
+
+                    att_pout = np.clip(att_pout, 1e-4, 1-1e-4)
+                    att_pin = np.clip(att_pin, 1e-4, 1-1e-4)
+                    att_pout = logit(att_pout)
+                    att_pin = logit(att_pin)
                 
                 if pout_list is None:
                     pout_list = pout
                     pin_list = pin
+                    att_pout_list = att_pout
+                    att_pin_list = att_pin                   
                 else:
                     pout_list = np.vstack((pout_list,pout))
                     pin_list = np.vstack((pin_list, pin))
+                    att_pout_list = np.vstack((att_pout_list,att_pout))
+                    att_pin_list = np.vstack((att_pin_list, att_pin))
             
             pout_list = pout_list.transpose()
             pin_list = pin_list.transpose()
@@ -321,9 +357,18 @@ if __name__ == "__main__":
             pin_std = np.std(pin_list,1)
             print(pin_mean.shape, np.average(pin_mean), pout_mean.shape, np.average(pout_mean))
 
+            att_pout_list = att_pout_list.transpose()
+            att_pin_list = att_pin_list.transpose()
+            att_pout_mean = np.mean(att_pout_list,1)
+            att_pout_std = np.std(att_pout_list,1)
+            att_pin_mean = np.mean(att_pin_list,1)
+            att_pin_std = np.std(att_pin_list,1)
+
             # Clean up some space
             pout_list = None
             pin_list = None
+            att_pout_list = None
+            att_pin_list = None
 
         loss_function = models.get_loss(conf)
         if TRAJECTORY_ATTACK:
@@ -417,9 +462,12 @@ if __name__ == "__main__":
 
             desired_fpr = [0.001, 0.005, 0.01, 0.03]
             if TRAJECTORY_ATTACK:
+                print("TrajectoryMIA attack")
                 distill_cnet = model_utils.init_model(conf["unit_size"], conf=conf, static_bn=False,)
                 loss_traj_in = None
                 loss_traj_out = None
+                att_loss_traj_in = None
+                att_loss_traj_out = None
 
 
                 for i in range(distill_epochs):
@@ -428,13 +476,26 @@ if __name__ == "__main__":
                     
                     loss_in = models.get_losses(distill_cnet, cl_ds, loss_function, conf=conf)
                     loss_out = models.get_losses(distill_cnet, test_ds, loss_function, conf=conf)
+                    att_loss_in = models.get_losses(distill_cnet, att_kn_in_ds, loss_function, conf=conf)
+                    att_loss_out = models.get_losses(distill_cnet, att_kn_out_ds, loss_function, conf=conf)
 
                     if loss_traj_in is None:
                         loss_traj_in = loss_in
                         loss_traj_out = loss_out
+                        att_loss_traj_in = att_loss_in
+                        att_loss_traj_out = att_loss_out
                     else:
                         loss_traj_in = np.vstack((loss_traj_in, loss_in))
                         loss_traj_out = np.vstack((loss_traj_out, loss_out))
+                        att_loss_traj_in = np.vstack((att_loss_traj_in, att_loss_in))
+                        att_loss_traj_out = np.vstack((att_loss_traj_out, att_loss_out))
+
+                att_kn_attack_data = {}
+                in_losses = models.get_losses(client_model, att_kn_in_ds, loss_function, conf=conf)
+                out_losses = models.get_losses(client_model, att_kn_out_ds, loss_function, conf=conf)
+                att_kn_attack_data['model_loss_ori'] = np.concatenate((in_losses, out_losses))
+                att_kn_attack_data['member_status'] = np.array([1]*len(in_losses) + [0]*len(out_losses))
+                att_kn_attack_data['model_trajectory'] = np.concatenate((att_loss_traj_in.transpose(),att_loss_traj_out.transpose()))
 
                 attack_test = {}
                 in_losses = models.get_losses(client_model, cl_ds, loss_function, conf=conf)
@@ -442,6 +503,7 @@ if __name__ == "__main__":
                 attack_test['model_loss_ori'] = np.concatenate((in_losses, out_losses))
                 attack_test['member_status'] = np.array([1]*len(in_losses) + [0]*len(out_losses))
                 attack_test['model_trajectory'] = np.concatenate((loss_traj_in.transpose(),loss_traj_out.transpose()))
+
                 print("Building attack model")
 
                 attack_train_set = torch.utils.data.TensorDataset(
@@ -454,8 +516,14 @@ if __name__ == "__main__":
                     torch.from_numpy(np.array(attack_test['model_trajectory'], dtype='f')),
                     torch.from_numpy(np.array(attack_test['member_status'])).type(torch.long),)
 
+                att_kn_attack_set = torch.utils.data.TensorDataset(
+                    torch.from_numpy(np.array(att_kn_attack_data['model_loss_ori'], dtype='f')),
+                    torch.from_numpy(np.array(att_kn_attack_data['model_trajectory'], dtype='f')),
+                    torch.from_numpy(np.array(att_kn_attack_data['member_status'])).type(torch.long),)
+
                 attack_train_loader = torch.utils.data.DataLoader(attack_train_set, batch_size=128, shuffle=True)
-                attack_test_loader = torch.utils.data.DataLoader(attack_test_set, batch_size=128, shuffle=True)    
+                attack_test_loader = torch.utils.data.DataLoader(attack_test_set, batch_size=128, shuffle=False)
+                att_kn_attack_loader = torch.utils.data.DataLoader(att_kn_attack_set, batch_size=128, shuffle=False)    
 
                 attack_model = MLP_BLACKBOX(dim_in = attack_data['model_trajectory'].shape[1] + 1)
                 attack_optimizer = torch.optim.SGD(attack_model.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0001) 
@@ -466,55 +534,95 @@ if __name__ == "__main__":
 
                 attack_fit(attack_model, attack_train_loader, attack_optimizer, loss_fn, models.get_device(conf), attack_test_loader=attack_test_loader, epochs=30)
                 print("TrajectoryMIA")
-                val_loss, val_prec1, traj_val_auc, _, _, tpr, fpr = test_mia_attack_model(attack_model, attack_test_loader, loss_fn, 100, 100, models.get_device(conf))
+                _, _, _, _, _, _, _, att_traj_pred = test_mia_attack_model(attack_model, att_kn_attack_loader, loss_fn, 100, 100, models.get_device(conf))                
+                val_loss, val_prec1, traj_val_auc, _, _, tpr, fpr, traj_pred = test_mia_attack_model(attack_model, attack_test_loader, loss_fn, 100, 100, models.get_device(conf))
                 print(val_loss, val_prec1, traj_val_auc)
+                att_thresh , _ = utils.find_best_threshold_numpy(att_traj_pred, np.array(att_kn_attack_data['member_status']))
+                traj_acc_at_att_acc = utils.calculate_accuracy_at_threshold(traj_pred, np.array(attack_test['member_status']), att_thresh)
+                _, traj_best_acc = utils.find_best_threshold_numpy(traj_pred, np.array(attack_test['member_status']))
 
                 closest_index = [(np.abs(fpr - d)).argmin() for d in desired_fpr]
                 traj_tpr_at_desired_fpr = tpr[closest_index]
                 print(f"TPR@FPR{desired_fpr}:{traj_tpr_at_desired_fpr}")
-
-            print("YEOM")
-            pout, lout = models.predict_ds(client_model, test_ds, apply_softmax=False, conf=conf)
-            pin, lin = models.predict_ds(client_model, cl_ds, apply_softmax=False, conf=conf)
-
-            lsout = loss_function(torch.from_numpy(pout), torch.from_numpy(lout), reduction='none').detach().numpy()
-            lsin = loss_function(torch.from_numpy(pin), torch.from_numpy(lin), reduction='none').detach().numpy()
-
-            yeom_probs = np.concatenate((lsin, lsout))
-
-            min_ = np.min(yeom_probs)
-            max_ = np.max(yeom_probs) 
-            yeom_probs = (yeom_probs-min_)/(max_-min_)
-            yeom_probs = 1-yeom_probs
-            yeom_labels = [1]*len(pin) + [0]*len(pout)
-            Yeom_fpr, Yeom_tpr, thresholds = metrics.roc_curve(yeom_labels, yeom_probs)
-            Yeom_roc_auc = metrics.auc(Yeom_fpr, Yeom_tpr)
-            print(Yeom_roc_auc)
-            closest_index = [(np.abs(Yeom_fpr - d)).argmin() for d in desired_fpr]
-            yeom_tpr_at_desired_fpr = Yeom_tpr[closest_index]
-            print(f"TPR@FPR{desired_fpr}:{yeom_tpr_at_desired_fpr}")
             
-            print("LiRA")
-            pout, lout = models.predict_ds(client_model, test_ds, apply_softmax=use_softmax, conf=conf)
-            pin, lin = models.predict_ds(client_model, cl_ds, apply_softmax=use_softmax, conf=conf)
-            pout = np.max(pout, -1)
-            pin = np.max(pin, -1)
-            if use_logit:
-                pout = np.clip(pout, 1e-4, 1-1e-4)
-                pin = np.clip(pin, 1e-4, 1-1e-4)
-                pout = logit(pout)
-                pin = logit(pin)
-            import scipy
-            pout_pred = scipy.stats.norm.cdf(pout, loc=pout_mean, scale=pout_std)
-            pin_pred = scipy.stats.norm.cdf(pin, loc=pin_mean, scale=pin_std)
-            lira_mlabel = [1]*len(pin_pred) + [0]*len(pout_pred)
-            lira_probs_all_variance = np.concatenate((pin_pred, pout_pred))
-            LiRA_fpr, LiRA_tpr, thresholds = metrics.roc_curve(lira_mlabel, lira_probs_all_variance)
-            LiRA_roc_auc = metrics.auc(LiRA_fpr, LiRA_tpr)
-            print(LiRA_roc_auc)
-            closest_index = [(np.abs(LiRA_fpr - d)).argmin() for d in desired_fpr]
-            lira_tpr_at_desired_fpr = LiRA_tpr[closest_index]
-            print(f"TPR@FPR{desired_fpr}:{lira_tpr_at_desired_fpr}")        
+            if YEOM_ATTACK:
+                print("YEOM")
+                att_pout, att_lout = models.predict_ds(client_model, att_kn_out_ds, apply_softmax=False, conf=conf)
+                att_pin, att_lin = models.predict_ds(client_model, att_kn_in_ds, apply_softmax=False, conf=conf)
+
+                att_lsout = loss_function(torch.from_numpy(att_pout), torch.from_numpy(att_lout), reduction='none').detach().numpy()
+                att_lsin = loss_function(torch.from_numpy(att_pin), torch.from_numpy(att_lin), reduction='none').detach().numpy()
+                yeom_probs = np.concatenate((att_lsin, att_lsout))
+                min_ = np.min(yeom_probs)
+                max_ = np.max(yeom_probs) 
+                yeom_probs = (yeom_probs-min_)/(max_-min_)
+                yeom_probs = 1-yeom_probs
+                yeom_labels = [1]*len(att_pin) + [0]*len(att_pout)
+                att_thresh, _ = utils.find_best_threshold_numpy(yeom_probs, yeom_labels)
+
+                pout, lout = models.predict_ds(client_model, test_ds, apply_softmax=False, conf=conf)
+                pin, lin = models.predict_ds(client_model, cl_ds, apply_softmax=False, conf=conf)
+
+                lsout = loss_function(torch.from_numpy(pout), torch.from_numpy(lout), reduction='none').detach().numpy()
+                lsin = loss_function(torch.from_numpy(pin), torch.from_numpy(lin), reduction='none').detach().numpy()
+
+                yeom_probs = np.concatenate((lsin, lsout))
+
+                min_ = np.min(yeom_probs)
+                max_ = np.max(yeom_probs) 
+                yeom_probs = (yeom_probs-min_)/(max_-min_)
+                yeom_probs = 1-yeom_probs
+                yeom_labels = [1]*len(pin) + [0]*len(pout)
+                Yeom_acc_at_att_acc = utils.calculate_accuracy_at_threshold(yeom_probs, yeom_labels, att_thresh)
+                _, Yeom_best_acc = utils.find_best_threshold_numpy(yeom_probs, yeom_labels)
+                Yeom_fpr, Yeom_tpr, thresholds = metrics.roc_curve(yeom_labels, yeom_probs)
+                Yeom_roc_auc = metrics.auc(Yeom_fpr, Yeom_tpr)
+                print(Yeom_roc_auc)
+                closest_index = [(np.abs(Yeom_fpr - d)).argmin() for d in desired_fpr]
+                yeom_tpr_at_desired_fpr = Yeom_tpr[closest_index]
+                print(f"TPR@FPR{desired_fpr}:{yeom_tpr_at_desired_fpr}")
+
+            if LIRA_ATTACK:
+                print("LiRA")
+                pout, lout = models.predict_ds(client_model, test_ds, apply_softmax=use_softmax, conf=conf)
+                pin, lin = models.predict_ds(client_model, cl_ds, apply_softmax=use_softmax, conf=conf)
+                pout = np.max(pout, -1)
+                pin = np.max(pin, -1)
+                if use_logit:
+                    pout = np.clip(pout, 1e-4, 1-1e-4)
+                    pin = np.clip(pin, 1e-4, 1-1e-4)
+                    pout = logit(pout)
+                    pin = logit(pin)
+                att_pout, _ = models.predict_ds(client_model, att_kn_out_ds, apply_softmax=use_softmax, conf=conf)
+                att_pin, lin = models.predict_ds(client_model, att_kn_in_ds, apply_softmax=use_softmax, conf=conf)
+                att_pout = np.max(att_pout, -1)
+                att_pin = np.max(att_pin, -1)
+                if use_logit:
+                    att_pout = np.clip(att_pout, 1e-4, 1-1e-4)
+                    att_pin = np.clip(att_pin, 1e-4, 1-1e-4)
+                    att_pout = logit(att_pout)
+                    att_pin = logit(att_pin)
+                import scipy
+                pout_pred = scipy.stats.norm.cdf(pout, loc=pout_mean, scale=pout_std)
+                pin_pred = scipy.stats.norm.cdf(pin, loc=pin_mean, scale=pin_std)
+                lira_mlabel = [1]*len(pin_pred) + [0]*len(pout_pred)
+                lira_probs_all_variance = np.concatenate((pin_pred, pout_pred))
+                # attacker knowledge
+                att_pout_pred = scipy.stats.norm.cdf(att_pout, loc=att_pout_mean, scale=att_pout_std)
+                att_pin_pred = scipy.stats.norm.cdf(att_pin, loc=att_pin_mean, scale=att_pin_std)
+                att_lira_mlabel = [1]*len(att_pin_pred) + [0]*len(att_pout_pred)
+                att_lira_probs_all_variance = np.concatenate((att_pin_pred, att_pout_pred))
+                att_thresh, _ = utils.find_best_threshold_numpy(att_lira_probs_all_variance, att_lira_mlabel)
+                LiRA_acc_at_att_acc = utils.calculate_accuracy_at_threshold(lira_probs_all_variance, lira_mlabel, att_thresh)
+                _, LiRA_best_acc = utils.find_best_threshold_numpy(lira_probs_all_variance, lira_mlabel)
+
+
+                LiRA_fpr, LiRA_tpr, thresholds = metrics.roc_curve(lira_mlabel, lira_probs_all_variance)
+                LiRA_roc_auc = metrics.auc(LiRA_fpr, LiRA_tpr)
+                print(LiRA_roc_auc)
+                closest_index = [(np.abs(LiRA_fpr - d)).argmin() for d in desired_fpr]
+                lira_tpr_at_desired_fpr = LiRA_tpr[closest_index]
+                print(f"TPR@FPR{desired_fpr}:{lira_tpr_at_desired_fpr}")        
 
             results = {"auc":{}, "tpr@fpr":{}}
             for i_fpr, fpr in enumerate(desired_fpr):
@@ -526,11 +634,19 @@ if __name__ == "__main__":
                 if YEOM_ATTACK:
                     results["tpr@fpr"][str(fpr)]["Yeom"] = yeom_tpr_at_desired_fpr[i_fpr]
             results["auc"] = {}
+            results["attack_acc"] = {}
+            results["best_acc"] = {}
             if TRAJECTORY_ATTACK:
                 results["auc"]["TrajectoryMIA"] = traj_val_auc
+                results['best_acc']["TrajectoryMIA"] = traj_best_acc
+                results["attack_acc"]["TrajectoryMIA"] = traj_acc_at_att_acc
             if LIRA_ATTACK:
+                results['best_acc']["LiRA"] = LiRA_best_acc
+                results["attack_acc"]["LiRA"] = LiRA_acc_at_att_acc
                 results["auc"]["LiRA"] = LiRA_roc_auc
             if YEOM_ATTACK:
+                results['best_acc']["Yeom"] = Yeom_best_acc
+                results["attack_acc"]["Yeom"] = Yeom_acc_at_att_acc
                 results["auc"]["Yeom"] = Yeom_roc_auc
             print(results)
         
