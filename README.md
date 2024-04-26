@@ -1,5 +1,7 @@
 # ma-fl-mia
 
+Install required packages with `requirements.txt`. Remove `wandb` or disable `WANDB_EXISTS` in `src/__init__.py` to run code standalone.
+
 Run `flower_train.py` for federated training, `central_train.py` for centralized training. Configure hyperparameters in `config.json`.
 
 Model-agnostic matrix mapping in `src/model_aggregation.py`
@@ -45,3 +47,6 @@ Example data partition: `[11267, 9562, 8603, 7318, 6530, 5275, 4357, 3184, 2162,
  - HeteroFL: `{"cut_type": "submatrix", "permutate_cuts":"one-repeated"}`
  - HeteroFL (R): `{"cut_type": "random", "permutate_cuts":"one-repeated"}`
 
+
+# Attack with Trajectory MIA and LiRA attacks:
+To generate detailed attacks with all 3 MIA (tMIA, LiRA, Yeom), one has to run the script `trajectoryMIA.py`. It expects a list of models to attack with the same shadow models.
