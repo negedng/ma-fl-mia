@@ -175,7 +175,10 @@ class SaveAndLogStrategy(fl.server.strategy.FedOpt):
 
             self.current_weights = new_weights
 
-            return ndarrays_to_parameters(self.current_weights), metrics_aggregated
+            self.aggregated_parameters = (
+            ndarrays_to_parameters(self.current_weights)  # Why can't I access this at eval?
+            )
+            return self.aggregated_parameters, metrics_aggregated
         raise NotImplementedError("base_fed not recognized: ",self.conf["base_fed"])
 
     def aggregate_evaluate(
