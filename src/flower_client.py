@@ -46,7 +46,7 @@ class FlowerClient(fl.client.NumPyClient):
 
     def calculate_parameters(self, weights, config):
         """set weights either as a simple update or model agnostic way"""
-        print("client set parameters called")
+        
         if "channel_idx_list" in config.keys():
             print("IDs from config")
             cp_weights = model_aggregation.crop_channels(weights, config["channel_idx_list"])
