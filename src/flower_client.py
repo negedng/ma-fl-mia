@@ -72,14 +72,14 @@ class FlowerClient(fl.client.NumPyClient):
                 w_from_shape = [l.shape for l in weights]
                 w_to_shape = [l.shape for l in models.get_weights(self.model)]
                 idx_ret = model_aggregation.cut_idx_new(w_from_shape, w_to_shape, conf=self.conf, grads=grads, rand=rand)
-                print(self.cid, idx_ret[0][0])
+                #print(self.cid, idx_ret[0][0])
                 cp_weights = model_aggregation.crop_channels(weights, idx_ret)
                 self.channel_idx_list = idx_ret
             else:
                 w_from_shape = [l.shape for l in weights]
                 w_to_shape = [l.shape for l in models.get_weights(self.model)]
                 idx_ret = model_aggregation.cut_idx_new(w_from_shape, w_to_shape, conf=self.conf, rand=rand)
-                print(rand, idx_ret[0][0])
+                #print(rand, idx_ret[0][0])
                 cp_weights = model_aggregation.crop_channels(weights, idx_ret)
                 #cp_weights = model_aggregation.select_channels(
                 #    weights, models.get_weights(self.model), conf=self.conf, rand=rand
@@ -91,7 +91,6 @@ class FlowerClient(fl.client.NumPyClient):
 
     def set_parameters(self, weights, config):
         """set weights either as a simple update or model agnostic way"""
-        print("client set parameters called")
         cp_weights = self.calculate_parameters(weights, config)
         models.set_weights(self.model, cp_weights)
 
