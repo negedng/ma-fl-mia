@@ -19,7 +19,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = conf["CUDA_VISIBLE_DEVICES"]
 
 from src.datasets import data_allocation
 from src import datasets
-from src.flower_client import FlowerClient
+from src.flower_client import FlowerClient, DPWrapperClient
 from src.flower_strategy import SaveAndLogStrategy
 from src import models, attacks, metrics
 from src.models import model_utils
@@ -43,7 +43,7 @@ def client_fn(cid: str) -> fl.client.Client:
     client.load_data(X_split[int(cid)], Y_split[int(cid)], X_val, Y_val)
     client.init_model()
     if conf["dp"]:
-        client = dpfedavg_numpy_client.DPFedAvgNumPyClient(client)
+        client = DPWrapperClient(client)
     return client
 
 

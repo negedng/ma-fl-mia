@@ -1,4 +1,6 @@
 import flwr as fl
+from flwr.common.dp import add_gaussian_noise, clip_by_l2
+
 from src.utils import log
 from logging import ERROR, INFO
 import numpy as np
@@ -6,7 +8,7 @@ import os
 from src import model_aggregation, models, utils
 from src.models import model_utils
 from src import datasets
-
+import copy
 
 class FlowerClient(fl.client.NumPyClient):
     """Client implementation using Flower federated learning framework"""
@@ -42,17 +44,16 @@ class FlowerClient(fl.client.NumPyClient):
     def get_parameters(self, config):
         return models.get_weights(self.model)
 
-    def set_parameters(self, weights, config):
+    def calculate_parameters(self, weights, config):
         """set weights either as a simple update or model agnostic way"""
+        print("client set parameters called")
         if "channel_idx_list" in config.keys():
             print("IDs from config")
             cp_weights = model_aggregation.crop_channels(weights, config["channel_idx_list"])
-            models.set_weights(self.model, cp_weights)
         elif self.conf["ma_mode"] == "heterofl":
             cp_weights = model_aggregation.select_channels(
                 weights, models.get_weights(self.model), conf=self.conf, rand=0
             )
-            models.set_weights(self.model, cp_weights)
         elif self.conf["ma_mode"] == "rm-cid":
             if "round_seed" in config.keys() and self.conf["permutate_cuts"]:
                 rand = config["round_seed"]
@@ -84,9 +85,15 @@ class FlowerClient(fl.client.NumPyClient):
                 #    weights, models.get_weights(self.model), conf=self.conf, rand=rand
                 #)
                 self.channel_idx_list = idx_ret
-            models.set_weights(self.model, cp_weights)
         else:
-            models.set_weights(self.model, weights)
+            cp_weights = weights
+        return cp_weights
+
+    def set_parameters(self, weights, config):
+        """set weights either as a simple update or model agnostic way"""
+        print("client set parameters called")
+        cp_weights = self.calculate_parameters(weights, config)
+        models.set_weights(self.model, cp_weights)
 
     def fit(self, weights, config):
         """Flower fit passing updated weights, data size and additional params in a dict"""
@@ -212,3 +219,73 @@ class FlowerClient(fl.client.NumPyClient):
                 str(e),
             )
             raise RuntimeError("Client evaluate terminated unexpectedly")
+
+
+class DPWrapperClient(fl.client.NumPyClient):
+    """Wrapper for configuring a Flower client for DP.
+    https://github.com/adap/flower/blob/v1.5.0/src/py/flwr/client/dpfedavg_numpy_client.py"""
+
+    def __init__(self, client: fl.client.NumPyClient) -> None:
+        super().__init__()
+        self.client = client
+
+    def get_properties(self, config):
+        return self.client.get_properties(config)
+
+    def get_parameters(self, config):
+        return self.client.get_parameters(config)
+
+    def evaluate(self, parameters, config):
+        return self.client.evaluate(parameters, config)
+
+    def fit(
+        self, parameters, config
+    ):
+        """Train the provided parameters using the locally held dataset.
+
+        This method first updates the local model using the original parameters
+        provided. It then calculates the update by subtracting the original
+        parameters from the updated model. The update is then clipped by an L2
+        norm and Gaussian noise is added if specified by the configuration.
+
+        The update is then applied to the original parameters to obtain the
+        updated parameters which are returned along with the number of examples
+        used and metrics computed during the fitting process.
+        """
+        original_params = self.client.calculate_parameters(parameters, config)
+        original_params = copy.deepcopy(original_params)
+        # Getting the updated model from the wrapped client
+        updated_params, num_examples, metrics = self.client.fit(parameters, config)
+
+        # Update = updated model - original model
+        update = [np.subtract(x, y) for (x, y) in zip(updated_params, original_params)]
+
+        if "dpfedavg_clip_norm" not in config:
+            raise Exception("Clipping threshold not supplied by the server.")
+        if not isinstance(config["dpfedavg_clip_norm"], float):
+            raise Exception("Clipping threshold should be a floating point value.")
+
+        # Clipping
+        update, clipped = clip_by_l2(update, config["dpfedavg_clip_norm"])
+
+        if "dpfedavg_noise_stddev" in config:
+            if not isinstance(config["dpfedavg_noise_stddev"], float):
+                raise Exception(
+                    "Scale of noise to be added should be a floating point value."
+                )
+            # Noising
+            update = add_gaussian_noise(update, config["dpfedavg_noise_stddev"])
+
+        for i, _ in enumerate(original_params):
+            updated_params[i] = original_params[i] + update[i]
+
+        # Calculating value of norm indicator bit, required for adaptive clipping
+        if "dpfedavg_adaptive_clip_enabled" in config:
+            if not isinstance(config["dpfedavg_adaptive_clip_enabled"], bool):
+                raise Exception(
+                    "dpfedavg_adaptive_clip_enabled should be a boolean-valued flag."
+                )
+            metrics["dpfedavg_norm_bit"] = not clipped
+
+        return updated_params, num_examples, metrics
+
