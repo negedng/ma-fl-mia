@@ -48,12 +48,13 @@ def get_example_model_shape(conf):
 class SaveAndLogStrategy(fl.server.strategy.FedOpt):
     """Adding saving and logging to the strategy pipeline"""
 
-    def __init__(self, conf, 
+    def __init__(self, conf,
                 eta: float = 1e-1,
                 beta_1: float = 0.9,
                 beta_2: float = 0.99,
                 tau: float = 1e-9,
-                 *args, **kwargs):
+                initial_parameters=None,
+                *args, **kwargs):
         self.conf = conf
         self.client_leaving_history = []
         eta_l = conf["learning_rate"]
@@ -62,9 +63,20 @@ class SaveAndLogStrategy(fl.server.strategy.FedOpt):
             beta_1 = conf["FedAdam"]["beta_1"]
             beta_2 = conf["FedAdam"]["beta_2"]
             tau = conf["FedAdam"]["tau"]
+        if conf["base_fed"] == "FedAvgM":
+            eta = conf["FedAvgM"]["eta"]
+            beta_1 = conf["FedAvgM"]["beta_1"]
         self.aggregated_parameters = None
         self.best_loss = np.inf
         self.global_model_shapes = get_example_model_shape(conf)
+        if initial_parameters is not None:
+            self.current_weights: NDArrays = parameters_to_ndarrays(
+                initial_parameters
+            )
+            if conf["base_fed"] in ["FedAvgM","FedAdam"]:
+                self.m_t = [np.zeros_like(x) for x in self.current_weights]  # Momentum vector
+            if conf["base_fed"] in ["FedAdam"]:
+                self.v_t = [np.zeros_like(x) for x in self.current_weights]    
         with open(
             os.path.join(
                 self.conf["paths"]["models"], self.conf["model_id"], "log_history.csv"
@@ -74,6 +86,7 @@ class SaveAndLogStrategy(fl.server.strategy.FedOpt):
             f.write("epoch,loss,accuracy,local_loss,local_accuracy\n")
         super().__init__(evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
                          fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
+                         initial_parameters=initial_parameters,
                         eta=eta,
                         eta_l=eta_l,
                         beta_1=beta_1,
@@ -145,6 +158,30 @@ class SaveAndLogStrategy(fl.server.strategy.FedOpt):
 
         if self.conf["base_fed"] == "FedAvg":
             return parameters_aggregated, metrics_aggregated
+        if self.conf["base_fed"] == "FedAvgM":
+            # Following https://flower.ai/docs/framework/_modules/flwr/server/strategy/fedavgm.html#FedAvgM
+            # Following: https://github.com/adap/flower/blob/main/baselines/fednova/fednova/strategy.py
+            # Pseudo gradients
+            fedavg_weights_aggregate = weights_aggregated
+            delta_t: NDArrays = [
+                x - y for x, y in zip(fedavg_weights_aggregate, self.current_weights)
+            ]
+            # m_t
+            if not self.m_t:
+                self.m_t = [np.zeros_like(x) for x in delta_t]
+            # Applying Nesterov
+            self.m_t = [
+                np.multiply(self.beta_1, x) + y
+                for x, y in zip(self.m_t, delta_t)
+            ]
+            # Federated Averaging with Server Momentum
+            new_weights = [
+                x + self.eta * y
+                for x, y in zip(self.current_weights, self.m_t)
+            ]
+            self.current_weights = new_weights
+            return ndarrays_to_parameters(self.current_weights), metrics_aggregated
+
         if self.conf["base_fed"] == "FedAdam":
             fedavg_weights_aggregate = weights_aggregated
             # Adam
