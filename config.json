@@ -13,8 +13,8 @@
     "min_attacker_knowledge": 3,
     "n_attack_sample" : 5000,
     "batch_size" : 128,
-    "optimizer": "SGD",
-    "learning_rate" : 0.03,
+    "optimizer": "Adam",
+    "learning_rate" : 0.001,
     "clipnorm": null,
     "weight_clients": false,
     "split_mode": "homogen",
@@ -40,9 +40,9 @@
     "norm_mode": "bn",
     "hide_layers": "no",
     "dataset": "CIFAR10",
-    "base_fed": "FedAdam",
+    "base_fed": "FedAvg",
     "FedAdam": {
-        "eta": 0.01,
+        "eta": 0.1,
         "beta_1": 0.9,
         "beta_2": 0.99,
         "tau": 0.01
