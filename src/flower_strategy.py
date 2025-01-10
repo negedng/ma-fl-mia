@@ -180,7 +180,10 @@ class SaveAndLogStrategy(fl.server.strategy.FedOpt):
                 for x, y in zip(self.current_weights, self.m_t)
             ]
             self.current_weights = new_weights
-            return ndarrays_to_parameters(self.current_weights), metrics_aggregated
+            self.aggregated_parameters = (
+            ndarrays_to_parameters(self.current_weights)  # Why can't I access this at eval?
+            )
+            return self.aggregated_parameters, metrics_aggregated
 
         if self.conf["base_fed"] == "FedAdam":
             fedavg_weights_aggregate = weights_aggregated
