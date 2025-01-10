@@ -46,7 +46,7 @@ def get_optimizer(params, conf={}):
     if conf["optimizer"]=="Adam":
         return torch.optim.Adam(params, lr=lr)
     if conf["optimizer"]=="SGD":
-        return torch.optim.SGD(params, lr=lr)
+        return torch.optim.SGD(params, lr=lr, momentum=0.9)
     raise NotImplementedError(f'Optim not recognized {conf["optimizer"]}')
 
 def evaluate(model, data, conf, verbose=0):
