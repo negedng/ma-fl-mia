@@ -49,7 +49,7 @@
     },
     "FedAvgM": {
         "eta": 0.1,
-        "beta_1": 0.9
+        "beta_1": 0.95
     },
     "proximal_mu": 0,
     "wandb_tags" : []
