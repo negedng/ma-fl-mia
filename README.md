@@ -1,4 +1,4 @@
-# ma-fl-mia
+# Privacy and Accuracy Implications of Model Complexity and Integration in Heterogeneous Federated Learning
 
 Install required packages with `requirements.txt`. Remove `wandb` or disable `WANDB_EXISTS` in `src/__init__.py` to run code standalone.
 
@@ -12,7 +12,7 @@ Server to client message handling in `src/flower_strategy.py` and `src/model_agg
 
 TensorFlow models are obsolete, use PyTorch instead! Model aggregation is framework-independent, but latest versions are tested only on PyTorch.
 
-# FEMNIST
+## FEMNIST
 Generating sample following original `leaf` code:
 
 `./preprocess.sh -s niid --sf 0.2 -k 300 -t user --smplseed 0 --spltseed 0`
@@ -24,7 +24,7 @@ Writers to client partitioning:
 
 Example data partition: `[11267, 9562, 8603, 7318, 6530, 5275, 4357, 3184, 2162, 1001]`
 
-# Config
+## Config
 
  - `dataset`: for CIFAR10, CIFAR100, or FEMNIST dataset
  - `num_clients`: for number of clients to train with
@@ -40,7 +40,7 @@ Example data partition: `[11267, 9562, 8603, 7318, 6530, 5275, 4357, 3184, 2162,
  - `cut_type`: `random` for Random or `submatrix` for Submatrix.
  - `cut_layerwise`: for experiment with same name in Appendix
 
-# Named variations
+## Named variations
  - FDropout: `{"cut_type": "random", "permutate_cuts":"incremental"}`
  - MaPP-FL (M): `{"cut_type": "submatrix", "permutate_cuts":"group-repeated"}` or `{"cut_type": "submatrix", "permutate_cuts":"repeated"}`
  - MaPP-FL (R): `{"cut_type": "random", "permutate_cuts":"group-repeated"}`
@@ -48,5 +48,20 @@ Example data partition: `[11267, 9562, 8603, 7318, 6530, 5275, 4357, 3184, 2162,
  - HeteroFL (R): `{"cut_type": "random", "permutate_cuts":"one-repeated"}`
 
 
-# Attack with Trajectory MIA and LiRA attacks:
+## Attack with Trajectory MIA and LiRA attacks:
 To generate detailed attacks with all 3 MIA (tMIA, LiRA, Yeom), one has to run the script `trajectoryMIA.py`. It expects a list of models to attack with the same shadow models.
+
+## Cite
+We kindly ask you to cite the following article if you use our work:
+```
+@ARTICLE{10906485,
+  author={Németh, Gergely D. and Lozano, Miguel Ángel and Quadrianto, Novi and Oliver, Nuria},
+  journal={IEEE Access}, 
+  title={Privacy and Accuracy Implications of Model Complexity and Integration in Heterogeneous Federated Learning}, 
+  year={2025},
+  volume={},
+  number={},
+  pages={1-1},
+  keywords={Computational modeling;Servers;Data models;Training;Taxonomy;Solid modeling;Federated learning;Complexity theory;Privacy;Data privacy;Federated learning;membership inference attack;model complexity;privacy},
+  doi={10.1109/ACCESS.2025.3546478}}
+```
